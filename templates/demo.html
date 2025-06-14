@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Demo - RSA Cryptanalysis Demo{% endblock %}
+
+{% block content %}
+<div class="demo-container">
+    <h1>🔬 Demo RSA Cryptanalysis</h1>
+    <p>Thực hành các chức năng RSA và mô phỏng tấn công</p>
+
+    <div class="tabs">
+        <button class="tab-button active" data-tab="keygen-tab">🔑 Sinh khóa</button>
+        <button class="tab-button" data-tab="encrypt-tab">🔒 Mã hóa</button>
+        <button class="tab-button" data-tab="decrypt-tab">🔓 Giải mã</button>
+        <button class="tab-button" data-tab="attack-single-tab">🎯 Tấn công khai căn</button>
+        <button class="tab-button" data-tab="hastad-tab">🚨 Tấn công Håstad</button>
+    </div>
+
+    <!-- Tab Sinh khóa -->
+    <div id="keygen-tab" class="tab-content active">
+        <h2>🔑 Sinh khóa RSA</h2>
+        <p>Tạo cặp khóa RSA với tham số tùy chỉnh</p>
+
+        <div class="form-group">
+            <label class="form-label" for="exponent">Số mũ công khai (e):</label>
+            <select id="exponent" class="form-select">
+                <option value="3">3 (Nguy hiểm - dễ bị tấn công)</option>
+                <option value="5">5</option>
+                <option value="17">17</option>
+                <option value="65537">65537 (Khuyến nghị)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="key-bits">Độ dài khóa (bits):</label>
+            <select id="key-bits" class="form-select">
+                <option value="512">512 (Không an toàn - chỉ để demo)</option>
+                <option value="1024" selected>1024</option>
+                <option value="2048">2048</option>
+            </select>
+        </div>
+
+        <button id="generate-key-btn" class="btn btn-primary">Sinh khóa</button>
+
+        <div id="key-loading" class="loading">
+            <div class="spinner"></div>
+            <p>Đang sinh khóa RSA...</p>
+        </div>
+
+        <div id="key-result" class="result-section" style="display: none;"></div>
+    </div>
+
+    <!-- Tab Mã hóa -->
+    <div id="encrypt-tab" class="tab-content">
+        <h2>🔒 Mã hóa RSA</h2>
+        <p>Mã hóa bản rõ với khóa công khai</p>
+
+        <div class="form-group">
+            <label class="form-label" for="encrypt-message">Bản rõ:</label>
+            <input type="text" id="encrypt-message" class="form-input"
+                placeholder="Nhập thông điệp cần mã hóa (ví dụ: Hello)" value="Hi">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="encrypt-n">Modulus (n):</label>
+            <textarea id="encrypt-n" class="form-textarea" placeholder="Nhập modulus n từ khóa công khai"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="encrypt-e">Số mũ công khai (e):</label>
+            <input type="text" id="encrypt-e" class="form-input" placeholder="Nhập số mũ công khai e" value="3">
+        </div>
+
+        <button id="encrypt-btn" class="btn btn-primary">Mã hóa</button>
+
+        <div id="encrypt-loading" class="loading">
+            <div class="spinner"></div>
+            <p>Đang mã hóa...</p>
+        </div>
+
+        <div id="encrypt-result" class="result-section" style="display: none;"></div>
+    </div>
+
+    <!-- Tab Giải mã -->
+    <div id="decrypt-tab" class="tab-content">
+        <h2>🔓 Giải mã RSA</h2>
+        <p>Giải mã bản mã với khóa riêng</p>
+
+        <div class="form-group">
+            <label class="form-label" for="decrypt-ciphertext">Bản mã:</label>
+            <textarea id="decrypt-ciphertext" class="form-textarea" placeholder="Nhập bản mã cần giải mã"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="decrypt-n">Modulus (n):</label>
+            <textarea id="decrypt-n" class="form-textarea" placeholder="Nhập modulus n"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="decrypt-d">Số mũ riêng (d):</label>
+            <textarea id="decrypt-d" class="form-textarea" placeholder="Nhập số mũ riêng d"></textarea>
+        </div>
+
+        <button id="decrypt-btn" class="btn btn-primary">Giải mã</button>
+
+        <div id="decrypt-loading" class="loading">
+            <div class="spinner"></div>
+            <p>Đang giải mã...</p>
+        </div>
+
+        <div id="decrypt-result" class="result-section" style="display: none;"></div>
+    </div>
+
+    <!-- Tab Tấn công khai căn -->
+    <div id="attack-single-tab" class="tab-content">
+        <h2>🎯 Tấn công khai căn (Cube Root Attack)</h2>
+        <p>Tấn công RSA khi m^e < n</p>
+
+                <div class="warning-box">
+                    <strong>⚠️ Điều kiện:</strong> Tấn công này chỉ thành công khi bản rõ m nhỏ đến mức m^e < n. Thường
+                        xảy ra với e=3 và bản rõ ngắn. </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="attack-ciphertext">Bản mã:</label>
+                            <textarea id="attack-ciphertext" class="form-textarea"
+                                placeholder="Nhập bản mã cần tấn công"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="attack-n">Modulus (n):</label>
+                            <textarea id="attack-n" class="form-textarea" placeholder="Nhập modulus n"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="attack-e">Số mũ công khai (e):</label>
+                            <input type="text" id="attack-e" class="form-input" placeholder="Nhập số mũ công khai e"
+                                value="3">
+                        </div>
+
+                        <button id="attack-btn" class="btn btn-danger">Bắt đầu tấn công</button>
+
+                        <div id="attack-loading" class="loading">
+                            <div class="spinner"></div>
+                            <p>Đang thực hiện tấn công...</p>
+                        </div>
+
+                        <div id="attack-result" class="result-section" style="display: none;"></div>
+                </div>
+
+                <!-- Tab Tấn công Håstad -->
+                <div id="hastad-tab" class="tab-content">
+                    <h2>🚨 Tấn công Håstad (Broadcast Attack)</h2>
+                    <p>Tấn công khi cùng bản rõ gửi tới nhiều người với cùng số mũ e</p>
+
+                    <div class="warning-box">
+                        <strong>⚠️ Điều kiện:</strong> Cần ít nhất e bản mã của cùng một bản rõ,
+                        được mã hóa với các khóa công khai khác nhau nhưng cùng số mũ e.
+                    </div>
+
+                    <!-- Phần tạo demo -->
+                    <h3>📋 Tạo Demo Tấn công Håstad</h3>
+                    <p>Tạo tự động các bản mã để minh họa tấn công</p>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="hastad-message">Bản rõ:</label>
+                            <input type="text" id="hastad-message" class="form-input" placeholder="Nhập bản rõ"
+                                value="Secret">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="hastad-e">Số mũ công khai (e):</label>
+                            <select id="hastad-e" class="form-select">
+                                <option value="3" selected>3</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="hastad-bits">Độ dài khóa (bits):</label>
+                            <select id="hastad-bits" class="form-select">
+                                <option value="512">512</option>
+                                <option value="1024" selected>1024</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="hastad-count">Số khóa:</label>
+                            <select id="hastad-count" class="form-select">
+                                <option value="3" selected>3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="hastad-demo-btn" class="btn btn-warning">Tạo Demo</button>
+
+                    <div id="hastad-demo-loading" class="loading">
+                        <div class="spinner"></div>
+                        <p>Đang tạo demo...</p>
+                    </div>
+
+                    <div id="hastad-demo-result" class="result-section" style="display: none;"></div>
+
+                    <!-- Phần thực hiện tấn công -->
+                    <h3>⚔️ Thực hiện Tấn công Håstad</h3>
+
+                    <div class="form-group">
+                        <label class="form-label" for="hastad-ciphertexts">Các bản mã (mỗi dòng một bản mã):</label>
+                        <textarea id="hastad-ciphertexts" class="form-textarea" rows="5"
+                            placeholder="Nhập các bản mã, mỗi dòng một bản mã&#10;Ví dụ:&#10;123456789&#10;987654321&#10;555666777"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="hastad-keys">Các khóa công khai (mỗi dòng: n,e):</label>
+                        <textarea id="hastad-keys" class="form-textarea" rows="5"
+                            placeholder="Nhập các khóa công khai, mỗi dòng định dạng: n,e&#10;Ví dụ:&#10;12345,3&#10;67890,3&#10;11111,3"></textarea>
+                    </div>
+
+                    <button id="hastad-attack-btn" class="btn btn-danger">Bắt đầu tấn công Håstad</button>
+
+                    <div id="hastad-attack-loading" class="loading">
+                        <div class="spinner"></div>
+                        <p>Đang thực hiện tấn công Håstad...</p>
+                    </div>
+
+                    <div id="hastad-attack-result" class="result-section" style="display: none;"></div>
+                </div>
+    </div>
+
+    <div class="demo-container">
+        <h2>📝 Hướng dẫn sử dụng</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+            <div class="attack-example">
+                <h3>1️⃣ Sinh khóa</h3>
+                <p>Chọn e = 3 và độ dài khóa phù hợp. Khóa được tạo sẽ tự động điền vào các tab khác.</p>
+            </div>
+
+            <div class="attack-example">
+                <h3>2️⃣ Mã hóa</h3>
+                <p>Nhập bản rõ ngắn (như "Hi", "Hello") để tạo điều kiện m^e < n cho tấn công.</p>
+            </div>
+
+            <div class="attack-example">
+                <h3>3️⃣ Tấn công</h3>
+                <p>Thử tấn công khai căn với bản mã vừa tạo. Nếu thành công, bản rõ sẽ được khôi phục.</p>
+            </div>
+
+            <div class="attack-example">
+                <h3>4️⃣ Håstad</h3>
+                <p>Tạo demo tự động hoặc nhập thủ công các bản mã để thực hiện tấn công Håstad.</p>
+            </div>
+        </div>
+    </div>
+    {% endblock %}

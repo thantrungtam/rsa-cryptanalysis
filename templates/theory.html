@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Lý thuyết - RSA Cryptanalysis Demo{% endblock %}
+
+{% block content %}
+<div class="theory-content">
+    <h1>📚 Lý thuyết RSA và Phương pháp Tấn công</h1>
+
+    <h2>1. Tổng quan về RSA</h2>
+    <p>
+        RSA (Rivest-Shamir-Adleman) là một hệ mật mã khóa công khai được phát minh năm 1977.
+        Tính bảo mật của RSA dựa trên độ khó của việc phân tích thừa số nguyên tố lớn.
+    </p>
+
+    <h3>1.1. Thuật toán sinh khóa RSA</h3>
+    <div class="attack-example">
+        <strong>Các bước sinh khóa:</strong>
+        <ol>
+            <li>Chọn hai số nguyên tố lớn p và q</li>
+            <li>Tính n = p × q (modulus)</li>
+            <li>Tính φ(n) = (p-1) × (q-1) (hàm Euler)</li>
+            <li>Chọn số mũ công khai e sao cho 1 < e < φ(n) và gcd(e, φ(n))=1</li>
+            <li>Tính số mũ riêng d sao cho e × d ≡ 1 (mod φ(n))</li>
+            <li>Khóa công khai: (n, e), Khóa riêng: (n, d)</li>
+        </ol>
+    </div>
+
+    <h3>1.2. Mã hóa và Giải mã</h3>
+    <div class="formula">
+        <strong>Mã hóa:</strong> c ≡ m^e (mod n)<br>
+        <strong>Giải mã:</strong> m ≡ c^d (mod n)
+    </div>
+
+    <h2>2. Tấn công với Số mũ Công khai Nhỏ</h2>
+    <p>
+        Khi sử dụng số mũ công khai nhỏ (như e = 3), RSA có thể bị tấn công trong một số điều kiện đặc biệt.
+    </p>
+
+    <h3>2.1. Tấn công Khai căn (Cube Root Attack)</h3>
+    <div class="warning-box">
+        <strong>Điều kiện tấn công:</strong> m^e < n </div>
+
+            <p>
+                Khi bản rõ m nhỏ đến mức m^e < n, thì phép toán modulo không có tác dụng. Kẻ tấn công có thể khôi phục
+                    bản rõ bằng cách tính căn bậc e của bản mã. </p>
+
+                    <div class="attack-example">
+                        <strong>Ví dụ với e = 3:</strong>
+                        <ul>
+                            <li>Nếu m = 100 và n = 1024^2, thì m^3 = 1,000,000 << n</li>
+                            <li>Bản mã c = m^3 (không có modulo thực sự)</li>
+                            <li>Kẻ tấn công tính m = ∛c để khôi phục bản rõ</li>
+                        </ul>
+                    </div>
+
+                    <div class="formula">
+                        <strong>Công thức tấn công:</strong><br>
+                        Nếu m^e < n thì c=m^e<br>
+                            Do đó: m = ⁿ√c (căn bậc e của c)
+                    </div>
+
+                    <h3>2.2. Tấn công Håstad (Håstad's Broadcast Attack)</h3>
+                    <p>
+                        Tấn công này xảy ra khi cùng một bản rõ được gửi tới nhiều người nhận khác nhau,
+                        mỗi người có khóa công khai riêng nhưng cùng số mũ e.
+                    </p>
+
+                    <div class="warning-box">
+                        <strong>Điều kiện tấn công:</strong>
+                        <ul>
+                            <li>Cùng bản rõ m được mã hóa với k ≥ e khóa công khai khác nhau</li>
+                            <li>Tất cả khóa có cùng số mũ công khai e</li>
+                            <li>Các modulus n₁, n₂, ..., nₖ đôi một nguyên tố cùng nhau</li>
+                        </ul>
+                    </div>
+
+                    <div class="attack-example">
+                        <strong>Mô tả tấn công:</strong>
+                        <ol>
+                            <li>Kẻ tấn công thu thập k bản mã: c₁, c₂, ..., cₖ</li>
+                            <li>Thiết lập hệ phương trình đồng dư:
+                                <div class="formula">
+                                    m^e ≡ c₁ (mod n₁)<br>
+                                    m^e ≡ c₂ (mod n₂)<br>
+                                    ...<br>
+                                    m^e ≡ cₖ (mod nₖ)
+                                </div>
+                            </li>
+                            <li>Sử dụng <span class="highlight">Định lý Số dư Trung Hoa (CRT)</span> để tìm m^e mod
+                                (n₁×n₂×...×nₖ)</li>
+                            <li>Vì m < min(n₁, n₂, ..., nₖ), ta có m^e < n₁×n₂×...×nₖ</li>
+                            <li>Tính m = ⁿ√(m^e) để khôi phục bản rõ</li>
+                        </ol>
+                    </div>
+
+                    <h2>3. Định lý Số dư Trung Hoa (Chinese Remainder Theorem)</h2>
+                    <p>
+                        CRT là công cụ toán học quan trọng để giải hệ phương trình đồng dư với các modulus đôi một
+                        nguyên tố cùng nhau.
+                    </p>
+
+                    <div class="formula">
+                        <strong>Công thức CRT:</strong><br>
+                        Cho hệ: x ≡ a₁ (mod n₁), x ≡ a₂ (mod n₂), ..., x ≡ aₖ (mod nₖ)<br>
+                        Với gcd(nᵢ, nⱼ) = 1 ∀i ≠ j<br><br>
+                        Giải pháp: x ≡ Σ(aᵢ × Nᵢ × Mᵢ) (mod N)<br>
+                        Trong đó: N = n₁×n₂×...×nₖ, Nᵢ = N/nᵢ, Mᵢ = Nᵢ⁻¹ (mod nᵢ)
+                    </div>
+
+                    <h2>4. Các Phương pháp Phòng chống</h2>
+
+                    <h3>4.1. Padding (Đệm)</h3>
+                    <div class="attack-example">
+                        <strong>OAEP (Optimal Asymmetric Encryption Padding):</strong>
+                        <ul>
+                            <li>Thêm dữ liệu ngẫu nhiên vào bản rõ trước khi mã hóa</li>
+                            <li>Đảm bảo m^e ≥ n trong hầu hết trường hợp</li>
+                            <li>Ngăn chặn tấn công khai căn và Håstad</li>
+                        </ul>
+                    </div>
+
+                    <h3>4.2. Sử dụng Số mũ Lớn</h3>
+                    <div class="attack-example">
+                        <strong>Khuyến nghị:</strong>
+                        <ul>
+                            <li>Sử dụng e = 65537 (2^16 + 1) thay vì e = 3</li>
+                            <li>Số mũ lớn hơn làm tăng độ bảo mật</li>
+                            <li>Tuy nhiên, cần cân nhắc hiệu suất tính toán</li>
+                        </ul>
+                    </div>
+
+                    <h3>4.3. Kiểm tra Kích thước Bản rõ</h3>
+                    <div class="warning-box">
+                        <strong>Nguyên tắc:</strong>
+                        <ul>
+                            <li>Đảm bảo m ≥ n^(1/e) để tránh m^e < n</li>
+                            <li>Sử dụng padding ngẫu nhiên cho bản rõ nhỏ</li>
+                            <li>Không gửi cùng bản rõ tới nhiều người với cùng e</li>
+                        </ul>
+                    </div>
+
+                    <h2>5. Ứng dụng Thực tế</h2>
+                    <p>
+                        Hiểu rõ các lỗ hổng này giúp:
+                    </p>
+                    <ul>
+                        <li><strong>Phát triển phần mềm:</strong> Thiết kế hệ thống mã hóa an toàn</li>
+                        <li><strong>Kiểm tra bảo mật:</strong> Đánh giá tính bảo mật của hệ thống hiện có</li>
+                        <li><strong>Nghiên cứu mật mã:</strong> Phát triển các phương pháp tấn công và phòng thủ mới
+                        </li>
+                        <li><strong>Giáo dục:</strong> Dạy và học về bảo mật thông tin</li>
+                    </ul>
+
+                    <div class="warning-box">
+                        <h3>⚠️ Lưu ý Quan trọng</h3>
+                        <p>
+                            Các kỹ thuật tấn công được trình bày chỉ nhằm mục đích giáo dục và nghiên cứu.
+                            <strong>KHÔNG</strong> sử dụng để tấn công các hệ thống thực tế mà không có sự cho phép.
+                        </p>
+                        <p>
+                            Việc tấn công hệ thống mà không được phép là bất hợp pháp và có thể bị truy cứu trách nhiệm
+                            pháp lý.
+                        </p>
+                    </div>
+    </div>
+    {% endblock %}

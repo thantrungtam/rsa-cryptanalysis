@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ - RSA Cryptanalysis Demo{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>🔐 RSA Cryptanalysis Demo</h1>
+    <p>Minh họa phương pháp thám mã tấn công với số mũ công khai nhỏ</p>
+    <p>Khám phá các lỗ hổng bảo mật của RSA khi sử dụng số mũ công khai nhỏ (e=3)</p>
+    <a href="{{ url_for('demo') }}" class="btn btn-primary">Bắt đầu Demo</a>
+</div>
+
+<div class="features-grid">
+    <div class="feature-card">
+        <h3>🔑 Sinh khóa RSA</h3>
+        <p>Tạo cặp khóa RSA với số mũ công khai tùy chỉnh (e=3, 5, 17, 65537...)</p>
+        <p>Hiển thị chi tiết các thành phần: n, e, d, p, q</p>
+        <a href="{{ url_for('demo') }}" class="btn">Thử ngay</a>
+    </div>
+
+    <div class="feature-card">
+        <h3>🔒 Mã hóa & Giải mã</h3>
+        <p>Thực hiện mã hóa và giải mã bản rõ với khóa RSA</p>
+        <p>Phân tích mối quan hệ giữa kích thước bản rõ và modulus</p>
+        <a href="{{ url_for('demo') }}" class="btn">Thử ngay</a>
+    </div>
+
+    <div class="feature-card">
+        <h3>🎯 Tấn công khai căn</h3>
+        <p>Minh họa tấn công khi m^e < n</p>
+                <p>Khôi phục bản rõ bằng cách tính căn bậc e của bản mã</p>
+                <a href="{{ url_for('demo') }}" class="btn btn-danger">Thử ngay</a>
+    </div>
+
+    <div class="feature-card">
+        <h3>🚨 Tấn công Håstad</h3>
+        <p>Tấn công khi cùng bản rõ gửi tới nhiều người</p>
+        <p>Sử dụng định lý số dư Trung Hoa (CRT) để khôi phục bản rõ</p>
+        <a href="{{ url_for('demo') }}" class="btn btn-warning">Thử ngay</a>
+    </div>
+
+    <div class="feature-card">
+        <h3>📚 Lý thuyết RSA</h3>
+        <p>Tìm hiểu về thuật toán RSA và các phương pháp tấn công</p>
+        <p>Giải thích chi tiết từng bước của các cuộc tấn công</p>
+        <a href="{{ url_for('theory') }}" class="btn">Tìm hiểu</a>
+    </div>
+
+    <div class="feature-card">
+        <h3>🛡️ Biện pháp phòng chống</h3>
+        <p>Cách thiết kế hệ thống RSA an toàn</p>
+        <p>Lựa chọn tham số phù hợp để tránh các cuộc tấn công</p>
+        <a href="{{ url_for('theory') }}" class="btn">Tìm hiểu</a>
+    </div>
+</div>
+
+<div class="demo-container">
+    <h2>🎓 Mục tiêu học tập</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <div>
+            <h3>📖 Lý thuyết</h3>
+            <ul style="text-align: left; padding-left: 2rem;">
+                <li>Hiểu rõ thuật toán RSA: sinh khóa, mã hóa, giải mã</li>
+                <li>Nắm vững vai trò của số mũ công khai e</li>
+                <li>Phân tích các điều kiện để tấn công thành công</li>
+                <li>Tìm hiểu định lý số dư Trung Hoa (CRT)</li>
+            </ul>
+        </div>
+        <div>
+            <h3>🔬 Thực hành</h3>
+            <ul style="text-align: left; padding-left: 2rem;">
+                <li>Triển khai các thuật toán RSA cơ bản</li>
+                <li>Mô phỏng tấn công khai căn khi m^e < n</li>
+                <li>Thực hiện tấn công Håstad với nhiều khóa</li>
+                <li>Đánh giá tính bảo mật của các tham số khác nhau</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="demo-container">
+    <h2>⚠️ Cảnh báo bảo mật</h2>
+    <p style="text-align: center; font-size: 1.1rem;">
+        Đây là ứng dụng minh họa mục đích học tập. <strong>KHÔNG</strong> sử dụng các khóa được tạo ra
+        trong môi trường thực tế vì chúng có thể không an toàn!
+    </p>
+    <p style="text-align: center; color: #666;">
+        Mục đích của dự án là giúp hiểu rõ các lỗ hổng bảo mật để thiết kế hệ thống an toàn hơn.
+    </p>
+</div>
+{% endblock %}
