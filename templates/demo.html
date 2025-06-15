@@ -3,6 +3,28 @@
 {% block title %}Demo - RSA Cryptanalysis Demo{% endblock %}
 
 {% block content %}
+<style>
+    /* Force CSS refresh and fix display issues */
+    .key-value,
+    .step-math {
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
+        min-height: auto !important;
+        word-wrap: break-word !important;
+        white-space: pre-wrap !important;
+    }
+
+    .key-display,
+    .result-section,
+    .steps-container {
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+</style>
 <div class="demo-container">
     <h1>🔬 Demo RSA Cryptanalysis</h1>
     <p>Thực hành các chức năng RSA và mô phỏng tấn công</p>
@@ -58,6 +80,9 @@
             <label class="form-label" for="encrypt-message">Bản rõ:</label>
             <input type="text" id="encrypt-message" class="form-input"
                 placeholder="Nhập thông điệp cần mã hóa (ví dụ: Hello)" value="Hi">
+            <small class="form-help">
+                💡 Nhập văn bản để mã hóa (ví dụ: Hello, Secret message)
+            </small>
         </div>
 
         <div class="form-group">
@@ -165,6 +190,9 @@
                             <label class="form-label" for="hastad-message">Bản rõ:</label>
                             <input type="text" id="hastad-message" class="form-input" placeholder="Nhập bản rõ"
                                 value="Secret">
+                            <small class="form-help">
+                                💡 Nhập văn bản để tạo demo tấn công (ví dụ: Secret)
+                            </small>
                         </div>
 
                         <div class="form-group">

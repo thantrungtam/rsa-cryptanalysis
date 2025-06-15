@@ -30,22 +30,38 @@ class RSAService:
             return {'success': False, 'error': str(ex)}
     
     @staticmethod
-    def encrypt_message(message, n, e):
+    def encrypt_message(message, n, e, input_type='text'):
         """Mã hóa tin nhắn với khóa công khai RSA"""
         try:
             n = int(n)
             e = int(e)
-            message_int = bytes_to_long(message.encode())
+            
+            # Xử lý input theo loại
+            if input_type == 'integer':
+                try:
+                    message_int = int(message)
+                    original_display = f"Số nguyên: {message}"
+                except ValueError:
+                    return {'success': False, 'error': 'Input không phải là số nguyên hợp lệ.'}
+            else:  # text
+                message_int = bytes_to_long(message.encode())
+                original_display = f"Văn bản: \"{message}\""
             
             if message_int >= n:
-                return {'success': False, 'error': 'Thông điệp quá dài so với modulus n.'}
+                return {'success': False, 'error': 'Thông điệp quá lớn so với modulus n.'}
             
+            # Tính toán mã hóa
             ciphertext = pow(message_int, e, n)
+            me_value = pow(message_int, e)
+            
             return {
                 'success': True,
                 'ciphertext': str(ciphertext),
                 'message_int': str(message_int),
-                'comparison': f"m^e = {message_int}^{e} = {pow(message_int, e)} {'<' if pow(message_int, e) < n else '>='} n = {n}"
+                'original_display': original_display,
+                'input_type': input_type,
+                'comparison': f"m^{e} = {message_int}^{e} = {me_value:,} {'<' if me_value < n else '>='} n = {n:,}",
+                'is_vulnerable': me_value < n
             }
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
@@ -196,8 +212,9 @@ def api_encrypt():
     message = data.get('message', '')
     n = data.get('n', '')
     e = data.get('e', '')
+    input_type = data.get('input_type', 'text')
     
-    result = RSAService.encrypt_message(message, n, e)
+    result = RSAService.encrypt_message(message, n, e, input_type)
     return jsonify(result)
 
 @app.route('/api/decrypt', methods=['POST'])
@@ -240,6 +257,7 @@ def api_generate_hastad_demo():
     e = data.get('e', 3)
     bits = data.get('bits', 1024)
     count = data.get('count', 3)
+    input_type = data.get('input_type', 'text')
     
     try:
         # Tạo nhiều cặp khóa
@@ -251,8 +269,8 @@ def api_generate_hastad_demo():
             if not key_result['success']:
                 return jsonify({'success': False, 'error': key_result['error']})
             
-            # Mã hóa cùng một message
-            encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'])
+            # Mã hóa cùng một message với input_type
+            encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'], input_type)
             if not encrypt_result['success']:
                 return jsonify({'success': False, 'error': encrypt_result['error']})
             
@@ -268,7 +286,8 @@ def api_generate_hastad_demo():
             'success': True,
             'message': message,
             'keys': keys,
-            'ciphertexts': ciphertexts
+            'ciphertexts': ciphertexts,
+            'input_type': input_type
         })
     except Exception as ex:
         return jsonify({'success': False, 'error': str(ex)})
