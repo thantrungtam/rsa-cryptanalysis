@@ -2,8 +2,11 @@ from flask import Flask, render_template, request, jsonify
 import json
 from Crypto.PublicKey import RSA
 from Crypto.Util.number import bytes_to_long, long_to_bytes
+from Crypto.Cipher import PKCS1_OAEP, PKCS1_v1_5
+from Crypto.Hash import SHA256
 from sympy import mod_inverse, integer_nthroot
 import base64
+import os
 
 app = Flask(__name__)
 
@@ -30,7 +33,7 @@ class RSAService:
             return {'success': False, 'error': str(ex)}
     
     @staticmethod
-    def encrypt_message(message, n, e, input_type='text'):
+    def encrypt_message(message, n, e, input_type='text', padding_type='raw'):
         """Mã hóa tin nhắn với khóa công khai RSA"""
         try:
             n = int(n)
@@ -44,39 +47,108 @@ class RSAService:
                 except ValueError:
                     return {'success': False, 'error': 'Input không phải là số nguyên hợp lệ.'}
             else:  # text
-                message_int = bytes_to_long(message.encode())
+                message_bytes = message.encode('utf-8')
                 original_display = f"Văn bản: \"{message}\""
             
-            if message_int >= n:
-                return {'success': False, 'error': 'Thông điệp quá lớn so với modulus n.'}
+            # Xử lý padding
+            if padding_type == 'raw':
+                if input_type == 'text':
+                    message_int = bytes_to_long(message_bytes)
+                if message_int >= n:
+                    return {'success': False, 'error': 'Thông điệp quá lớn so với modulus n.'}
+                
+                # Raw RSA encryption
+                ciphertext = pow(message_int, e, n)
+                me_value = pow(message_int, e)
+                
+                return {
+                    'success': True,
+                    'ciphertext': str(ciphertext),
+                    'message_int': str(message_int),
+                    'original_display': original_display,
+                    'input_type': input_type,
+                    'padding_type': padding_type,
+                    'comparison': f"m^{e} = {message_int}^{e} = {me_value:,} {'<' if me_value < n else '>='} n = {n:,}",
+                    'is_vulnerable': me_value < n,
+                    'padding_info': 'Không sử dụng padding (Raw RSA - dễ bị tấn công)'
+                }
+                
+            elif padding_type == 'pkcs1_v1_5':
+                # PKCS#1 v1.5 padding
+                key = RSA.construct((n, e))
+                cipher = PKCS1_v1_5.new(key)
+                ciphertext_bytes = cipher.encrypt(message_bytes)
+                ciphertext = bytes_to_long(ciphertext_bytes)
+                
+                return {
+                    'success': True,
+                    'ciphertext': str(ciphertext),
+                    'message_int': 'N/A (sử dụng padding)',
+                    'original_display': original_display,
+                    'input_type': input_type,
+                    'padding_type': padding_type,
+                    'comparison': 'Sử dụng PKCS#1 v1.5 padding - an toàn hơn',
+                    'is_vulnerable': False,
+                    'padding_info': 'PKCS#1 v1.5 - thêm random padding để chống tấn công'
+                }
+                
+            elif padding_type == 'oaep':
+                # OAEP padding
+                key = RSA.construct((n, e))
+                cipher = PKCS1_OAEP.new(key, hashAlgo=SHA256)
+                ciphertext_bytes = cipher.encrypt(message_bytes)
+                ciphertext = bytes_to_long(ciphertext_bytes)
+                
+                return {
+                    'success': True,
+                    'ciphertext': str(ciphertext),
+                    'message_int': 'N/A (sử dụng padding)',
+                    'original_display': original_display,
+                    'input_type': input_type,
+                    'padding_type': padding_type,
+                    'comparison': 'Sử dụng OAEP padding - rất an toàn',
+                    'is_vulnerable': False,
+                    'padding_info': 'OAEP (Optimal Asymmetric Encryption Padding) - chuẩn bảo mật cao nhất'
+                }
             
-            # Tính toán mã hóa
-            ciphertext = pow(message_int, e, n)
-            me_value = pow(message_int, e)
-            
-            return {
-                'success': True,
-                'ciphertext': str(ciphertext),
-                'message_int': str(message_int),
-                'original_display': original_display,
-                'input_type': input_type,
-                'comparison': f"m^{e} = {message_int}^{e} = {me_value:,} {'<' if me_value < n else '>='} n = {n:,}",
-                'is_vulnerable': me_value < n
-            }
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
     
     @staticmethod
-    def decrypt_message(ciphertext, n, d):
+    def decrypt_message(ciphertext, n, d, padding_type='raw', e=None):
         """Giải mã bản mã với khóa riêng RSA"""
         try:
             n = int(n)
             d = int(d)
             ciphertext = int(ciphertext)
             
-            message_int = pow(ciphertext, d, n)
-            message = long_to_bytes(message_int).decode()
-            return {'success': True, 'message': message, 'message_int': str(message_int)}
+            if padding_type == 'raw':
+                message_int = pow(ciphertext, d, n)
+                message = long_to_bytes(message_int).decode()
+                return {'success': True, 'message': message, 'message_int': str(message_int), 'padding_type': padding_type}
+                
+            elif padding_type == 'pkcs1_v1_5':
+                if e is None:
+                    e = 65537  # Default value
+                key = RSA.construct((n, int(e), d))
+                cipher = PKCS1_v1_5.new(key)
+                ciphertext_bytes = long_to_bytes(ciphertext)
+                message_bytes = cipher.decrypt(ciphertext_bytes, None)
+                if message_bytes is None:
+                    return {'success': False, 'error': 'Giải mã PKCS#1 v1.5 thất bại'}
+                message = message_bytes.decode('utf-8')
+                return {'success': True, 'message': message, 'message_int': 'N/A', 'padding_type': padding_type}
+                
+            elif padding_type == 'oaep':
+                if e is None:
+                    e = 65537  # Default value
+                key = RSA.construct((n, int(e), d))
+                cipher = PKCS1_OAEP.new(key, hashAlgo=SHA256)
+                ciphertext_bytes = long_to_bytes(ciphertext)
+                message_bytes = cipher.decrypt(ciphertext_bytes)
+                message = message_bytes.decode('utf-8')
+                return {'success': True, 'message': message, 'message_int': 'N/A', 'padding_type': padding_type}
+                
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
     
@@ -213,8 +285,9 @@ def api_encrypt():
     n = data.get('n', '')
     e = data.get('e', '')
     input_type = data.get('input_type', 'text')
+    padding_type = data.get('padding_type', 'raw')
     
-    result = RSAService.encrypt_message(message, n, e, input_type)
+    result = RSAService.encrypt_message(message, n, e, input_type, padding_type)
     return jsonify(result)
 
 @app.route('/api/decrypt', methods=['POST'])
@@ -224,8 +297,10 @@ def api_decrypt():
     ciphertext = data.get('ciphertext', '')
     n = data.get('n', '')
     d = data.get('d', '')
+    e = data.get('e', None)
+    padding_type = data.get('padding_type', 'raw')
     
-    result = RSAService.decrypt_message(ciphertext, n, d)
+    result = RSAService.decrypt_message(ciphertext, n, d, padding_type, e)
     return jsonify(result)
 
 @app.route('/api/attack_single', methods=['POST'])
@@ -258,8 +333,18 @@ def api_generate_hastad_demo():
     bits = data.get('bits', 1024)
     count = data.get('count', 3)
     input_type = data.get('input_type', 'text')
+    padding_type = data.get('padding_type', 'raw')
     
     try:
+        # Kiểm tra nếu padding không phải raw thì không thể tấn công
+        if padding_type != 'raw':
+            return jsonify({
+                'success': False, 
+                'error': f'Tấn công Håstad chỉ hiệu quả với Raw RSA. Padding {padding_type} đã chống được tấn công này.',
+                'padding_blocked': True,
+                'padding_type': padding_type
+            })
+        
         # Tạo nhiều cặp khóa
         keys = []
         ciphertexts = []
@@ -269,8 +354,8 @@ def api_generate_hastad_demo():
             if not key_result['success']:
                 return jsonify({'success': False, 'error': key_result['error']})
             
-            # Mã hóa cùng một message với input_type
-            encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'], input_type)
+            # Mã hóa cùng một message với input_type và padding_type
+            encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'], input_type, padding_type)
             if not encrypt_result['success']:
                 return jsonify({'success': False, 'error': encrypt_result['error']})
             
@@ -287,7 +372,8 @@ def api_generate_hastad_demo():
             'message': message,
             'keys': keys,
             'ciphertexts': ciphertexts,
-            'input_type': input_type
+            'input_type': input_type,
+            'padding_type': padding_type
         })
     except Exception as ex:
         return jsonify({'success': False, 'error': str(ex)})

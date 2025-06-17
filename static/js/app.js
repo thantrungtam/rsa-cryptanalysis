@@ -155,13 +155,6 @@ async function generateRSAKey() {
                     </div>
                 </div>
                 
-                <div class="attack-example mt-2">
-                    <strong>📝 Khóa công khai:</strong> (n, e) = (${formatNumber(result.n)}, ${result.e})
-                </div>
-                <div class="attack-example mt-2">
-                    <strong>🔒 Khóa riêng:</strong> (n, d) = (${formatNumber(result.n)}, ${formatNumber(result.d)})
-                </div>
-                
                 <div class="warning-box mt-2">
                     <strong>⚠️ Cảnh báo bảo mật:</strong> Với e = ${result.e}, khóa này dễ bị tấn công nếu bản rõ nhỏ (m^e < n)!
                 </div>
@@ -189,6 +182,7 @@ async function encryptMessage() {
     const message = document.getElementById('encrypt-message').value;
     const n = document.getElementById('encrypt-n').value;
     const e = document.getElementById('encrypt-e').value;
+    const paddingType = document.getElementById('encrypt-padding').value;
     const inputType = 'text'; // Chỉ sử dụng text
 
     if (!message || !n || !e) {
@@ -209,7 +203,8 @@ async function encryptMessage() {
                 message: message,
                 n: n,
                 e: e,
-                input_type: inputType
+                input_type: inputType,
+                padding_type: paddingType
             })
         });
 
@@ -247,9 +242,15 @@ async function encryptMessage() {
                         <span class="key-value">"${result.original_display}"</span>
                     </div>
                     <div class="key-row">
+                        <span class="key-label">Loại padding:</span>
+                        <span class="key-value">${result.padding_info}</span>
+                    </div>
+                    ${result.message_int !== 'N/A (sử dụng padding)' ? `
+                    <div class="key-row">
                         <span class="key-label">Giá trị số nguyên (m):</span>
                         <textarea class="key-textarea" readonly>${formatNumber(result.message_int)}</textarea>
                     </div>
+                    ` : ''}
                     <div class="key-row">
                         <span class="key-label">Số mũ công khai (e):</span>
                         <span class="key-value short">${e}</span>
@@ -293,6 +294,8 @@ async function decryptMessage() {
     const ciphertext = document.getElementById('decrypt-ciphertext').value;
     const n = document.getElementById('decrypt-n').value;
     const d = document.getElementById('decrypt-d').value;
+    const e = document.getElementById('encrypt-e').value; // Lấy e từ encrypt tab
+    const paddingType = document.getElementById('decrypt-padding').value;
 
     if (!ciphertext || !n || !d) {
         showResult('decrypt-result', '<h3>⚠️ Thiếu thông tin</h3><p>Vui lòng nhập đầy đủ thông tin!</p>', 'warning');
@@ -308,7 +311,13 @@ async function decryptMessage() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ ciphertext: ciphertext, n: n, d: d })
+            body: JSON.stringify({
+                ciphertext: ciphertext,
+                n: n,
+                d: d,
+                e: e,
+                padding_type: paddingType
+            })
         });
 
         const result = await response.json();
@@ -328,6 +337,7 @@ async function decryptMessage() {
                         <span class="step-number">Bước 2:</span>
                         <span class="step-math">Tính toán: m ≡ ${formatNumber(ciphertext)}^${formatNumber(d)} (mod ${formatNumber(n)})</span>
                     </div>
+                    ${result.message_int !== 'N/A' ? `
                     <div class="step-item">
                         <span class="step-number">Bước 3:</span>
                         <span class="step-math">Kết quả số nguyên: m = ${formatNumber(result.message_int)}</span>
@@ -336,6 +346,16 @@ async function decryptMessage() {
                         <span class="step-number">Bước 4:</span>
                         <span class="step-math">Chuyển đổi về văn bản: ${formatNumber(result.message_int)} → "${result.message}"</span>
                     </div>
+                    ` : `
+                    <div class="step-item">
+                        <span class="step-number">Bước 3:</span>
+                        <span class="step-math">Giải mã bằng padding scheme: ${result.padding_type}</span>
+                    </div>
+                    <div class="step-item">
+                        <span class="step-number">Bước 4:</span>
+                        <span class="step-math">Kết quả: "${result.message}"</span>
+                    </div>
+                    `}
                 </div>
 
                 <div class="key-display">
@@ -345,6 +365,10 @@ async function decryptMessage() {
                         <textarea class="key-textarea" readonly>${formatNumber(ciphertext)}</textarea>
                     </div>
                     <div class="key-row">
+                        <span class="key-label">Loại padding:</span>
+                        <span class="key-value">${result.padding_type}</span>
+                    </div>
+                    <div class="key-row">
                         <span class="key-label">Số mũ riêng (d):</span>
                         <textarea class="key-textarea" readonly>${formatNumber(d)}</textarea>
                     </div>
@@ -352,10 +376,12 @@ async function decryptMessage() {
                         <span class="key-label">Modulus (n):</span>
                         <textarea class="key-textarea" readonly>${formatNumber(n)}</textarea>
                     </div>
+                    ${result.message_int !== 'N/A' ? `
                     <div class="key-row">
                         <span class="key-label">Bản rõ (số nguyên):</span>
                         <textarea class="key-textarea" readonly>${formatNumber(result.message_int)}</textarea>
                     </div>
+                    ` : ''}
                     <div class="key-row">
                         <span class="key-label">Bản rõ (văn bản):</span>
                         <span class="key-value">"${result.message}"</span>
@@ -491,6 +517,7 @@ async function generateHastadDemo() {
     const e = parseInt(document.getElementById('hastad-e').value) || 3;
     const bits = parseInt(document.getElementById('hastad-bits').value) || 1024;
     const count = parseInt(document.getElementById('hastad-count').value) || 3;
+    const paddingType = document.getElementById('hastad-padding').value;
     const inputType = 'text'; // Chỉ sử dụng text
 
     showLoading('hastad-demo-loading');
@@ -507,7 +534,8 @@ async function generateHastadDemo() {
                 e: e,
                 bits: bits,
                 count: count,
-                input_type: inputType
+                input_type: inputType,
+                padding_type: paddingType
             })
         });
 
@@ -585,6 +613,10 @@ async function generateHastadDemo() {
                         <span class="key-label">Số lượng khóa:</span>
                         <span class="key-value">${count}</span>
                     </div>
+                    <div class="key-row">
+                        <span class="key-label">Loại padding:</span>
+                        <span class="key-value">${result.padding_type} ${result.padding_type === 'raw' ? '(Có thể tấn công)' : '(Chống tấn công)'}</span>
+                    </div>
                 </div>
                 ${keysHTML}
                 ${ciphersHTML}
@@ -608,7 +640,40 @@ async function generateHastadDemo() {
             keysArea.value = keysText.trim();
 
         } else {
-            showResult('hastad-demo-result', `<h3>❌ Lỗi tạo demo</h3><p>${result.error}</p>`, 'error');
+            // Xử lý trường hợp padding block
+            if (result.padding_blocked) {
+                const paddingBlockHTML = `
+                    <h3>🛡️ Padding đã chặn tấn công!</h3>
+                    <div class="key-display">
+                        <div class="key-row">
+                            <span class="key-label">Loại padding:</span>
+                            <span class="key-value">${result.padding_type}</span>
+                        </div>
+                        <div class="key-row">
+                            <span class="key-label">Trạng thái:</span>
+                            <span class="key-value" style="color: #00aa44; font-weight: bold;">✅ CHỐNG ĐƯỢC TẤN CÔNG</span>
+                        </div>
+                    </div>
+                    <div class="warning-box">
+                        <h4>🔒 Tại sao padding chống được tấn công Håstad?</h4>
+                        <ul>
+                            <li><strong>PKCS#1 v1.5:</strong> Thêm random padding làm cho mỗi lần mã hóa cùng message tạo ra ciphertext khác nhau</li>
+                            <li><strong>OAEP:</strong> Sử dụng hash function và random padding, đảm bảo mỗi lần mã hóa là duy nhất</li>
+                            <li><strong>Kết quả:</strong> Không còn có cùng message được mã hóa thành cùng pattern → CRT không áp dụng được</li>
+                        </ul>
+                    </div>
+                    <div class="attack-example">
+                        <strong>💡 Bài học:</strong> Đây là lý do tại sao KHÔNG BAO GIỜ sử dụng Raw RSA trong thực tế. 
+                        Padding schemes như PKCS#1 v1.5 và OAEP đã được thiết kế để chống lại các cuộc tấn công này.
+                    </div>
+                    <div class="attack-example" style="border-left: 4px solid #00aa44;">
+                        <strong>✅ Thử nghiệm:</strong> Hãy chuyển về "Raw RSA" để xem tấn công Håstad hoạt động như thế nào!
+                    </div>
+                `;
+                showResult('hastad-demo-result', paddingBlockHTML, 'success');
+            } else {
+                showResult('hastad-demo-result', `<h3>❌ Lỗi tạo demo</h3><p>${result.error}</p>`, 'error');
+            }
         }
     } catch (error) {
         hideLoading('hastad-demo-loading');
@@ -719,12 +784,6 @@ async function performHastadAttack() {
                     <div class="key-row">
                         <span class="key-label">Giá trị CRT (m^e):</span>
                         <textarea class="key-textarea" readonly>${formatNumber(result.crt_result)}</textarea>
-                    </div>
-                    ` : ''}
-                    ${publicKeys.length > 0 ? `
-                    <div class="key-row">
-                        <span class="key-label">Modulus đầu tiên (n₁):</span>
-                        <textarea class="key-textarea" readonly>${formatNumber(publicKeys[0].n)}</textarea>
                     </div>
                     ` : ''}
                     <div class="key-row">
