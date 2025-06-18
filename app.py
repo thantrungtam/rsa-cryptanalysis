@@ -4,9 +4,10 @@ from Crypto.PublicKey import RSA
 from Crypto.Util.number import bytes_to_long, long_to_bytes
 from Crypto.Cipher import PKCS1_OAEP, PKCS1_v1_5
 from Crypto.Hash import SHA256
-from sympy import mod_inverse, integer_nthroot
+from sympy import mod_inverse, integer_nthroot, isprime, nextprime
 import base64
 import os
+import random
 
 app = Flask(__name__)
 
@@ -17,20 +18,85 @@ class RSAService:
     def generate_rsa_key(e=3, bits=1024):
         """Tạo cặp khóa RSA với số mũ công khai e"""
         try:
-            while True:
-                key = RSA.generate(bits, e=e)
-                if key.e == e:
-                    return {
-                        'success': True,
-                        'n': str(key.n),
-                        'e': str(key.e),
-                        'd': str(key.d),
-                        'p': str(key.p),
-                        'q': str(key.q),
-                        'bits': bits
-                    }
+            # Nếu bits >= 1024, sử dụng thư viện Crypto bình thường
+            if bits >= 1024:
+                while True:
+                    key = RSA.generate(bits, e=e)
+                    if key.e == e:
+                        return {
+                            'success': True,
+                            'n': str(key.n),
+                            'e': str(key.e),
+                            'd': str(key.d),
+                            'p': str(key.p),
+                            'q': str(key.q),
+                            'bits': bits
+                        }
+            else:
+                # Tạo khóa tùy chỉnh cho bits < 1024 (cho mục đích demo)
+                return RSAService._generate_custom_rsa_key(e, bits)
+                
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
+    
+    @staticmethod
+    def _generate_custom_rsa_key(e=3, bits=512):
+        """Tạo khóa RSA tùy chỉnh cho bits nhỏ (dành cho demo)"""
+        try:
+            from math import gcd
+            
+            # Tính bit length cho p và q
+            p_bits = bits // 2
+            q_bits = bits - p_bits
+            
+            max_attempts = 100  # Giới hạn số lần thử để tránh vòng lặp vô tận
+            
+            for attempt in range(max_attempts):
+                # Sinh số nguyên tố p
+                while True:
+                    p = random.getrandbits(p_bits)
+                    p |= (1 << (p_bits - 1))  # Đảm bảo bit cao nhất là 1
+                    p |= 1  # Đảm bảo số lẻ
+                    if isprime(p):
+                        break
+                
+                # Sinh số nguyên tố q khác p
+                while True:
+                    q = random.getrandbits(q_bits)
+                    q |= (1 << (q_bits - 1))  # Đảm bảo bit cao nhất là 1
+                    q |= 1  # Đảm bảo số lẻ
+                    if isprime(q) and q != p:
+                        break
+                
+                # Tính n và phi(n)
+                n = p * q
+                phi_n = (p - 1) * (q - 1)
+                
+                # Kiểm tra điều kiện gcd(e, phi_n) = 1
+                if gcd(e, phi_n) == 1:
+                    # Tính d = e^(-1) mod phi(n)
+                    d = mod_inverse(e, phi_n)
+                    
+                    return {
+                        'success': True,
+                        'n': str(n),
+                        'e': str(e),
+                        'd': str(d),
+                        'p': str(p),
+                        'q': str(q),
+                        'bits': bits
+                    }
+                
+                # Nếu không thỏa mãn, thử lại với p, q khác
+            
+            # Nếu sau max_attempts lần vẫn không tìm được khóa phù hợp
+            return {
+                'success': False, 
+                'error': f'Không thể tạo khóa RSA với e={e} sau {max_attempts} lần thử. Hãy thử với e khác hoặc bits lớn hơn.'
+            }
+            
+        except Exception as ex:
+            return {'success': False, 'error': f'Lỗi tạo khóa tùy chỉnh: {str(ex)}'}
     
     @staticmethod
     def encrypt_message(message, n, e, input_type='text', padding_type='raw'):
@@ -207,7 +273,7 @@ class RSAService:
             return {'success': False, 'error': str(ex)}
     
     @staticmethod
-    def hastad_attack(ciphertexts, public_keys):
+    def hastad_attack(ciphertexts, public_keys, padding_type='raw', original_message=None):
         """Tấn công Håstad khi cùng bản rõ gửi tới nhiều người"""
         try:
             # Chuyển đổi input thành số nguyên
@@ -219,6 +285,12 @@ class RSAService:
             steps = []
             steps.append(f"Số mũ công khai e = {e}")
             steps.append(f"Số lượng bản mã: {len(ciphertexts)}")
+            steps.append(f"Loại padding được sử dụng: {padding_type}")
+            
+            # Kiểm tra padding
+            if padding_type != 'raw':
+                steps.append(f"⚠️ CẢNH BÁO: Đang thử tấn công với padding {padding_type}")
+                steps.append("Tấn công Håstad thường chỉ hiệu quả với Raw RSA, nhưng sẽ thử nghiệm...")
             
             # Tạo hệ phương trình đồng dư
             congruences = [(c, n) for c, (n, _) in zip(ciphertexts, public_keys)]
@@ -237,16 +309,66 @@ class RSAService:
             steps.append(f"Kết quả khai căn bậc {e}: {m_root}, chính xác: {exact}")
             
             if not exact:
+                if padding_type != 'raw':
+                    steps.append("❌ THẤT BẠI: Không thể khai căn chính xác")
+                    steps.append(f"🔍 NGUYÊN NHÂN: Padding {padding_type} đã làm thay đổi cấu trúc dữ liệu")
+                    steps.append("📚 GIẢI THÍCH: Với padding, cùng message sẽ tạo ra các ciphertext khác nhau")
+                    steps.append("   → Chinese Remainder Theorem không áp dụng được")
+                    steps.append("   → Đây chính là lý do padding được thiết kế để chống tấn công này!")
+                    return {'success': False, 'error': 'Tấn công thất bại do padding chống bảo vệ', 'steps': steps, 'padding_protected': True}
                 return {'success': False, 'error': 'Không tìm được căn bậc e chính xác.', 'steps': steps}
             
-            try:
-                message = long_to_bytes(m_root).decode()
-            except:
-                message = str(long_to_bytes(m_root))
-            
-            steps.append(f"Bản rõ thu được: {message}")
-            
-            return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+            # Xử lý kết quả dựa trên padding type
+            if padding_type == 'raw':
+                try:
+                    message = long_to_bytes(m_root).decode()
+                    steps.append(f"✅ THÀNH CÔNG: Bản rõ thu được: {message}")
+                    
+                    # So sánh với original message nếu có
+                    if original_message and message == original_message:
+                        steps.append(f"🎯 XÁC NHẬN: Kết quả khớp với bản rõ gốc!")
+                    elif original_message:
+                        steps.append(f"⚠️ CẢNH BÁO: Kết quả '{message}' khác với bản rõ gốc '{original_message}'")
+                        
+                    return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+                    
+                except UnicodeDecodeError:
+                    message_bytes = long_to_bytes(m_root)
+                    steps.append(f"✅ THÀNH CÔNG: Khôi phục được dữ liệu (binary): {message_bytes}")
+                    return {'success': True, 'message': str(message_bytes), 'steps': steps, 'recovered_m': str(m_root)}
+                    
+            else:
+                # Với padding, cần giải mã padding
+                steps.append(f"🔄 Đang thử giải mã padding {padding_type}...")
+                try:
+                    # Đây chỉ là attempt - thường sẽ fail với padded data
+                    raw_bytes = long_to_bytes(m_root)
+                    
+                    if padding_type == 'pkcs1_v1_5':
+                        steps.append("🔍 Đang tìm kiếm cấu trúc PKCS#1 v1.5: 0x00 0x02 [PS] 0x00 [MESSAGE]")
+                        # Thử tìm pattern PKCS#1 v1.5
+                        if len(raw_bytes) >= 11 and raw_bytes[0:2] == b'\x00\x02':
+                            # Tìm separator 0x00
+                            try:
+                                sep_idx = raw_bytes.index(b'\x00', 2)
+                                message = raw_bytes[sep_idx+1:].decode()
+                                steps.append(f"✅ THÀNH CÔNG: Tìm thấy message trong padding: {message}")
+                                return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+                            except (ValueError, UnicodeDecodeError):
+                                pass
+                    
+                    # Nếu không giải được padding
+                    steps.append(f"❌ THẤT BẠI: Không thể giải mã padding {padding_type}")
+                    steps.append("🔍 NGUYÊN NHÂN: Dữ liệu thu được không có cấu trúc padding hợp lệ")
+                    steps.append("📚 KẾT LUẬN: Padding đã chống được tấn công Håstad thành công!")
+                    
+                    return {'success': False, 'error': f'Không thể giải mã padding {padding_type}', 
+                           'steps': steps, 'padding_protected': True, 'raw_recovered': str(m_root)}
+                    
+                except Exception as decode_ex:
+                    steps.append(f"❌ LỖI khi giải mã: {str(decode_ex)}")
+                    return {'success': False, 'error': f'Lỗi giải mã padding: {str(decode_ex)}', 'steps': steps}
+                    
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
 
@@ -320,8 +442,10 @@ def api_attack_hastad():
     data = request.get_json()
     ciphertexts = data.get('ciphertexts', [])
     public_keys = data.get('public_keys', [])
+    padding_type = data.get('padding_type', 'raw')
+    original_message = data.get('original_message', None)
     
-    result = RSAService.hastad_attack(ciphertexts, public_keys)
+    result = RSAService.hastad_attack(ciphertexts, public_keys, padding_type, original_message)
     return jsonify(result)
 
 @app.route('/api/generate_hastad_demo', methods=['POST'])
@@ -336,18 +460,10 @@ def api_generate_hastad_demo():
     padding_type = data.get('padding_type', 'raw')
     
     try:
-        # Kiểm tra nếu padding không phải raw thì không thể tấn công
-        if padding_type != 'raw':
-            return jsonify({
-                'success': False, 
-                'error': f'Tấn công Håstad chỉ hiệu quả với Raw RSA. Padding {padding_type} đã chống được tấn công này.',
-                'padding_blocked': True,
-                'padding_type': padding_type
-            })
-        
         # Tạo nhiều cặp khóa
         keys = []
         ciphertexts = []
+        encryption_details = []
         
         for i in range(count):
             key_result = RSAService.generate_rsa_key(e=e, bits=bits)
@@ -366,6 +482,28 @@ def api_generate_hastad_demo():
                 'index': i + 1
             })
             ciphertexts.append(encrypt_result['ciphertext'])
+            
+            # Lưu thông tin mã hóa để phân tích
+            encryption_details.append({
+                'key_index': i + 1,
+                'ciphertext': encrypt_result['ciphertext'],
+                'is_vulnerable': encrypt_result.get('is_vulnerable', False) if padding_type == 'raw' else False,
+                'padding_info': encrypt_result.get('padding_info', ''),
+                'message_int': encrypt_result.get('message_int', 'N/A')
+            })
+        
+        # Phân tích khả năng tấn công
+        attack_analysis = {
+            'can_attack': padding_type == 'raw',
+            'reason': 'Raw RSA - có thể tấn công' if padding_type == 'raw' 
+                     else f'Padding {padding_type} chống được tấn công Håstad',
+            'padding_effectiveness': {
+                'raw': 'Không có bảo vệ - dễ bị tấn công',
+                'pkcs1_v1_5': 'Random padding làm mỗi lần mã hóa tạo ra kết quả khác nhau',
+                'oaep': 'Hash-based padding với random elements - cực kỳ an toàn'
+            }.get(padding_type, 'Unknown padding'),
+            'educational_note': 'Demo này cho phép bạn thấy tại sao padding quan trọng trong RSA'
+        }
         
         return jsonify({
             'success': True,
@@ -373,7 +511,9 @@ def api_generate_hastad_demo():
             'keys': keys,
             'ciphertexts': ciphertexts,
             'input_type': input_type,
-            'padding_type': padding_type
+            'padding_type': padding_type,
+            'encryption_details': encryption_details,
+            'attack_analysis': attack_analysis
         })
     except Exception as ex:
         return jsonify({'success': False, 'error': str(ex)})

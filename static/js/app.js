@@ -594,6 +594,32 @@ async function generateHastadDemo() {
             const inputTypeDisplay = result.input_type === 'integer' ? 'Số nguyên' : 'Văn bản';
             const messageDisplay = result.input_type === 'integer' ? result.message : `"${result.message}"`;
 
+            // Hiển thị phân tích tấn công
+            let attackAnalysisHTML = '';
+            if (result.attack_analysis) {
+                const analysis = result.attack_analysis;
+                attackAnalysisHTML = `
+                    <div class="warning-box" style="border-left: 4px solid ${analysis.can_attack ? '#ff4444' : '#00aa44'};">
+                        <h4>🎯 Phân tích khả năng tấn công:</h4>
+                        <div class="key-row">
+                            <span class="key-label">Trạng thái:</span>
+                            <span class="key-value" style="color: ${analysis.can_attack ? '#ff4444' : '#00aa44'}; font-weight: bold;">
+                                ${analysis.can_attack ? '⚠️ CÓ THỂ BỊ TẤN CÔNG' : '🛡️ ĐƯỢC BẢO VỆ'}
+                            </span>
+                        </div>
+                        <div class="key-row">
+                            <span class="key-label">Lý do:</span>
+                            <span class="key-value">${analysis.reason}</span>
+                        </div>
+                        <div class="key-row">
+                            <span class="key-label">Cơ chế bảo vệ:</span>
+                            <span class="key-value">${analysis.padding_effectiveness}</span>
+                        </div>
+                        <p><strong>📚 Giáo dục:</strong> ${analysis.educational_note}</p>
+                    </div>
+                `;
+            }
+
             const demoHTML = `
                 <h3>📋 Demo Tấn công Håstad đã sẵn sàng!</h3>
                 <div class="key-display">
@@ -615,14 +641,18 @@ async function generateHastadDemo() {
                     </div>
                     <div class="key-row">
                         <span class="key-label">Loại padding:</span>
-                        <span class="key-value">${result.padding_type} ${result.padding_type === 'raw' ? '(Có thể tấn công)' : '(Chống tấn công)'}</span>
+                        <span class="key-value">${result.padding_type}</span>
                     </div>
                 </div>
+                ${attackAnalysisHTML}
                 ${keysHTML}
                 ${ciphersHTML}
                 <div class="attack-example mt-2">
-                    <strong>📝 Lưu ý:</strong> Cùng một bản rõ được mã hóa với ${count} khóa khác nhau có cùng e=${e}. 
-                    Bây giờ hãy thực hiện tấn công Håstad bên dưới!
+                    <strong>📝 Thử nghiệm:</strong> Cùng một bản rõ "${result.message}" được mã hóa với ${count} khóa khác nhau có cùng e=${e}. 
+                    ${result.attack_analysis?.can_attack ?
+                    'Bây giờ hãy thực hiện tấn công Håstad bên dưới để xem nó hoạt động!' :
+                    'Hãy thử tấn công bên dưới để xem padding bảo vệ như thế nào!'
+                }
                 </div>
             `;
             showResult('hastad-demo-result', demoHTML, 'success');
@@ -639,41 +669,15 @@ async function generateHastadDemo() {
             });
             keysArea.value = keysText.trim();
 
+            // Lưu thông tin để tấn công (global variables hoặc data attributes)
+            window.hastadDemoData = {
+                padding_type: result.padding_type,
+                original_message: result.message,
+                attack_analysis: result.attack_analysis
+            };
+
         } else {
-            // Xử lý trường hợp padding block
-            if (result.padding_blocked) {
-                const paddingBlockHTML = `
-                    <h3>🛡️ Padding đã chặn tấn công!</h3>
-                    <div class="key-display">
-                        <div class="key-row">
-                            <span class="key-label">Loại padding:</span>
-                            <span class="key-value">${result.padding_type}</span>
-                        </div>
-                        <div class="key-row">
-                            <span class="key-label">Trạng thái:</span>
-                            <span class="key-value" style="color: #00aa44; font-weight: bold;">✅ CHỐNG ĐƯỢC TẤN CÔNG</span>
-                        </div>
-                    </div>
-                    <div class="warning-box">
-                        <h4>🔒 Tại sao padding chống được tấn công Håstad?</h4>
-                        <ul>
-                            <li><strong>PKCS#1 v1.5:</strong> Thêm random padding làm cho mỗi lần mã hóa cùng message tạo ra ciphertext khác nhau</li>
-                            <li><strong>OAEP:</strong> Sử dụng hash function và random padding, đảm bảo mỗi lần mã hóa là duy nhất</li>
-                            <li><strong>Kết quả:</strong> Không còn có cùng message được mã hóa thành cùng pattern → CRT không áp dụng được</li>
-                        </ul>
-                    </div>
-                    <div class="attack-example">
-                        <strong>💡 Bài học:</strong> Đây là lý do tại sao KHÔNG BAO GIỜ sử dụng Raw RSA trong thực tế. 
-                        Padding schemes như PKCS#1 v1.5 và OAEP đã được thiết kế để chống lại các cuộc tấn công này.
-                    </div>
-                    <div class="attack-example" style="border-left: 4px solid #00aa44;">
-                        <strong>✅ Thử nghiệm:</strong> Hãy chuyển về "Raw RSA" để xem tấn công Håstad hoạt động như thế nào!
-                    </div>
-                `;
-                showResult('hastad-demo-result', paddingBlockHTML, 'success');
-            } else {
-                showResult('hastad-demo-result', `<h3>❌ Lỗi tạo demo</h3><p>${result.error}</p>`, 'error');
-            }
+            showResult('hastad-demo-result', `<h3>❌ Lỗi tạo demo</h3><p>${result.error}</p>`, 'error');
         }
     } catch (error) {
         hideLoading('hastad-demo-loading');
@@ -709,114 +713,191 @@ async function performHastadAttack() {
     clearResult('hastad-attack-result');
 
     try {
+        // Lấy thông tin padding từ demo data nếu có
+        const demoData = window.hastadDemoData || {};
+        const paddingType = demoData.padding_type || 'raw';
+        const originalMessage = demoData.original_message || null;
+
         const response = await fetch('/api/attack_hastad', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ ciphertexts: ciphertexts, public_keys: publicKeys })
+            body: JSON.stringify({
+                ciphertexts: ciphertexts,
+                public_keys: publicKeys,
+                padding_type: paddingType,
+                original_message: originalMessage
+            })
         });
 
         const result = await response.json();
         hideLoading('hastad-attack-loading');
 
         if (result.success) {
+            // Hiển thị thông tin về padding
+            const displayPaddingType = paddingType || 'raw';
+            const paddingInfo = displayPaddingType === 'raw' ?
+                'Raw RSA (không có padding)' :
+                `Padding ${displayPaddingType} (đã được bỏ qua do tấn công thành công)`;
+
             const attackHTML = `
                 <h3>🎯 Tấn công Håstad thành công!</h3>
                 
-                <div class="steps-container">
-                    <h4>🔍 Các bước tấn công Håstad (Broadcast Attack):</h4>
-                    <div class="step-item">
-                        <span class="step-number">Bước 1:</span>
-                        <span class="step-math">Thu thập ${result.ciphertexts?.length || ciphertexts.length} bản mã của cùng bản rõ m với ${result.ciphertexts?.length || ciphertexts.length} khóa RSA khác nhau (cùng e=${result.e || publicKeys[0]?.e})</span>
+                ${result.steps ? `
+                    <div class="steps-container">
+                        <h4>🔍 Chi tiết quá trình tấn công:</h4>
+                        ${result.steps.map((step, index) =>
+                `<div class="step-item">
+                                <span class="step-number">${index + 1}</span>
+                                <span class="step-math">${step}</span>
+                            </div>`
+            ).join('')}
                     </div>
-                    <div class="step-item">
-                        <span class="step-number">Bước 2:</span>
-                        <span class="step-math">Thiết lập hệ phương trình đồng dư:<br/>
-                        m^${result.e || publicKeys[0]?.e} ≡ ${formatNumber(ciphertexts[0])} (mod n₁)<br/>
-                        m^${result.e || publicKeys[0]?.e} ≡ ${formatNumber(ciphertexts[1] || 'c₂')} (mod n₂)<br/>
-                        ${ciphertexts.length > 2 ? `m^${result.e || publicKeys[0]?.e} ≡ ${formatNumber(ciphertexts[2])} (mod n₃)` : ''}
-                        </span>
-                    </div>
-                    <div class="step-item">
-                        <span class="step-number">Bước 3:</span>
-                        <span class="step-math">Áp dụng Định lý Số dư Trung Hoa (CRT):<br/>
-                        Tìm x sao cho x ≡ cᵢ (mod nᵢ) với i = 1,2,...,${ciphertexts.length}<br/>
-                        Kết quả: x = m^${result.e || publicKeys[0]?.e} mod (n₁×n₂×...×n${ciphertexts.length})</span>
-                    </div>
-                    <div class="step-item">
-                        <span class="step-number">Bước 4:</span>
-                        <span class="step-math">Kiểm tra điều kiện: m < min(n₁,n₂,...,n${ciphertexts.length})<br/>
-                        Do đó: m^${result.e || publicKeys[0]?.e} < n₁×n₂×...×n${ciphertexts.length}<br/>
-                        Vậy x = m^${result.e || publicKeys[0]?.e} (không có modulo thực sự)</span>
-                    </div>
-                    <div class="step-item">
-                        <span class="step-number">Bước 5:</span>
-                        <span class="step-math">Tính căn bậc ${result.e || publicKeys[0]?.e}:<br/>
-                        m = ∛(${formatNumber(result.crt_result || 'x')}) = ${formatNumber(result.recovered_m)}</span>
-                    </div>
-                    <div class="step-item">
-                        <span class="step-number">Bước 6:</span>
-                        <span class="step-math">Chuyển đổi về văn bản:<br/>
-                        ${formatNumber(result.recovered_m)} → "${result.message}"</span>
-                    </div>
-                    ${result.crt_result ? `
-                    <div class="step-item">
-                        <span class="step-number">📊 Chi tiết CRT:</span>
-                        <span class="step-math">Giá trị trung gian m^${result.e || publicKeys[0]?.e} = ${formatNumber(result.crt_result)}<br/>
-                        Modulus tổng hợp N = ${publicKeys.map((key, i) => `n${i + 1}`).join('×')}<br/>
-                        Điều kiện thỏa mãn: m^${result.e || publicKeys[0]?.e} < N</span>
-                    </div>
-                    ` : ''}
-                </div>
+                ` : ''}
 
                 <div class="key-display">
                     <h4>📊 Kết quả tấn công Håstad:</h4>
                     <div class="key-row">
                         <span class="key-label">Số lượng bản mã:</span>
-                        <span class="key-value short">${result.ciphertexts?.length || ciphertexts.length}</span>
+                        <span class="key-value short">${ciphertexts.length}</span>
                     </div>
                     <div class="key-row">
                         <span class="key-label">Số mũ công khai (e):</span>
-                        <span class="key-value short">${result.e || publicKeys[0]?.e}</span>
-                    </div>
-                    ${result.crt_result ? `
-                    <div class="key-row">
-                        <span class="key-label">Giá trị CRT (m^e):</span>
-                        <textarea class="key-textarea" readonly>${formatNumber(result.crt_result)}</textarea>
-                    </div>
-                    ` : ''}
-                    <div class="key-row">
-                        <span class="key-label">Bản rõ khôi phục (m):</span>
-                        <textarea class="key-textarea" readonly>${formatNumber(result.recovered_m)}</textarea>
+                        <span class="key-value short">${publicKeys[0]?.e}</span>
                     </div>
                     <div class="key-row">
-                        <span class="key-label">Văn bản khôi phục:</span>
+                        <span class="key-label">Loại padding:</span>
+                        <span class="key-value">${paddingInfo}</span>
+                    </div>
+                    <div class="key-row">
+                        <span class="key-label">Bản rõ khôi phục:</span>
                         <span class="key-value">"${result.message}"</span>
                     </div>
+                    ${originalMessage ? `
+                    <div class="key-row">
+                        <span class="key-label">So sánh gốc:</span>
+                        <span class="key-value" style="color: ${result.message === originalMessage ? '#00aa44' : '#ff4444'};">
+                            ${result.message === originalMessage ? '✅ Khớp hoàn toàn!' : '❌ Khác với bản gốc'}
+                        </span>
+                    </div>
+                    ` : ''}
                 </div>
                 
-                <div class="warning-box mt-2">
-                    <strong>🚨 Kết luận:</strong> Tấn công Håstad thành công! Không bao giờ gửi cùng một bản rõ tới nhiều người với cùng số mũ e nhỏ!
+                <div class="warning-box mt-2" style="border-left: 4px solid #ff4444;">
+                    <strong>🚨 Kết luận:</strong> Tấn công Håstad thành công! 
+                    ${displayPaddingType === 'raw' ?
+                    'Raw RSA hoàn toàn không an toàn khi gửi cùng bản rõ với cùng e nhỏ!' :
+                    `Mặc dù sử dụng padding ${displayPaddingType}, tấn công vẫn thành công (điều này bất thường và cần điều tra thêm).`
+                }
                 </div>
                 
                 <div class="attack-example mt-2">
-                    <strong>💡 Cách phòng chống:</strong> Sử dụng padding ngẫu nhiên, tránh gửi cùng bản rõ với cùng e, hoặc sử dụng e lớn hơn.
+                    <strong>💡 Cách phòng chống:</strong> 
+                    <ul>
+                        <li>Sử dụng padding ngẫu nhiên (PKCS#1 v1.5, OAEP)</li>
+                        <li>Tránh gửi cùng bản rõ tới nhiều người</li>
+                        <li>Sử dụng e lớn hơn (65537)</li>
+                        <li>Thêm salt ngẫu nhiên vào message</li>
+                    </ul>
                 </div>
             `;
             showResult('hastad-attack-result', attackHTML, 'success');
         } else {
-            const errorHTML = `
-                <h3>❌ Tấn công thất bại</h3>
-                <p>${result.error}</p>
-                ${result.steps ? `
-                    <div class="steps-container">
-                        <h4>Các bước đã thực hiện:</h4>
-                        ${result.steps.map((step, index) => `<div class="step-item"><span class="step-number">Bước ${index + 1}:</span> ${step}</div>`).join('')}
+            // Xử lý trường hợp thất bại với thông tin chi tiết về padding
+            const demoData = window.hastadDemoData || {};
+            const failPaddingType = demoData.padding_type || 'raw';
+
+            let errorHTML = '';
+
+            if (result.padding_protected) {
+                // Trường hợp padding chống được tấn công
+                errorHTML = `
+                    <h3>🛡️ Tấn công bị chặn bởi Padding!</h3>
+                    
+                    <div class="warning-box" style="border-left: 4px solid #00aa44;">
+                        <h4>✅ Kết quả: Padding ${failPaddingType} đã bảo vệ thành công!</h4>
+                        <p><strong>Lý do:</strong> ${result.error}</p>
                     </div>
-                ` : ''}
-            `;
-            showResult('hastad-attack-result', errorHTML, 'error');
+                    
+                    ${result.steps ? `
+                        <div class="steps-container">
+                            <h4>🔍 Chi tiết quá trình tấn công:</h4>
+                            ${result.steps.map((step, index) =>
+                    `<div class="step-item">
+                                    <span class="step-number">${index + 1}</span>
+                                    <span class="step-math">${step}</span>
+                                </div>`
+                ).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="key-display">
+                        <h4>📊 Thông tin tấn công:</h4>
+                        <div class="key-row">
+                            <span class="key-label">Loại padding:</span>
+                            <span class="key-value">${failPaddingType}</span>
+                        </div>
+                        <div class="key-row">
+                            <span class="key-label">Trạng thái bảo mật:</span>
+                            <span class="key-value" style="color: #00aa44; font-weight: bold;">🛡️ ĐƯỢC BẢO VỆ</span>
+                        </div>
+                        ${result.raw_recovered ? `
+                        <div class="key-row">
+                            <span class="key-label">Dữ liệu thô thu được:</span>
+                            <textarea class="key-textarea" readonly>${result.raw_recovered}</textarea>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="attack-example mt-2" style="border-left: 4px solid #00aa44;">
+                        <h4>🔒 Tại sao padding chống được tấn công Håstad?</h4>
+                        <ul>
+                            <li><strong>PKCS#1 v1.5:</strong> Thêm random padding, làm mỗi lần mã hóa tạo ra kết quả khác nhau</li>
+                            <li><strong>OAEP:</strong> Sử dụng hash và random padding, đảm bảo tính ngẫu nhiên cao</li>
+                            <li><strong>Kết quả:</strong> Không còn cùng message được mã hóa thành cùng pattern</li>
+                            <li><strong>Chinese Remainder Theorem:</strong> Không áp dụng được do dữ liệu khác nhau</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="warning-box mt-2">
+                        <strong>🎓 Bài học:</strong> Đây chính là lý do tại sao KHÔNG BAO GIỜ sử dụng Raw RSA trong thực tế. 
+                        Padding schemes đã được thiết kế để chống lại chính xác loại tấn công này!
+                    </div>
+                `;
+            } else {
+                // Trường hợp lỗi khác
+                errorHTML = `
+                    <h3>❌ Tấn công thất bại</h3>
+                    <div class="warning-box" style="border-left: 4px solid #ff4444;">
+                        <p><strong>Lỗi:</strong> ${result.error}</p>
+                        <p><strong>Loại padding:</strong> ${failPaddingType}</p>
+                    </div>
+                    
+                    ${result.steps ? `
+                        <div class="steps-container">
+                            <h4>🔍 Các bước đã thực hiện:</h4>
+                            ${result.steps.map((step, index) =>
+                    `<div class="step-item">
+                                    <span class="step-number">${index + 1}</span>
+                                    <span class="step-math">${step}</span>
+                                </div>`
+                ).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="attack-example mt-2">
+                        <strong>💡 Khuyến nghị:</strong> 
+                        <ul>
+                            <li>Kiểm tra dữ liệu đầu vào (bản mã và khóa)</li>
+                            <li>Đảm bảo cùng bản rõ được mã hóa với các khóa khác nhau</li>
+                            <li>Thử với Raw RSA để xem tấn công cơ bản</li>
+                        </ul>
+                    </div>
+                `;
+            }
+
+            showResult('hastad-attack-result', errorHTML, result.padding_protected ? 'success' : 'error');
         }
     } catch (error) {
         hideLoading('hastad-attack-loading');
