@@ -910,26 +910,6 @@ async function performHastadAttack() {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function () {
-    // Force fix display issues
-    const style = document.createElement('style');
-    style.textContent = `
-        .key-value, .step-math {
-            overflow: visible !important;
-            max-height: none !important;
-            height: auto !important;
-            min-height: auto !important;
-            word-wrap: break-word !important;
-            white-space: pre-wrap !important;
-        }
-        .key-display, .result-section, .steps-container {
-            overflow: visible !important;
-            max-height: none !important;
-            height: auto !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-    `;
-    document.head.appendChild(style);
 
     initializeTabs();
 

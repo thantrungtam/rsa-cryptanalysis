@@ -1,25 +1,45 @@
 from flask import Flask, render_template, request, jsonify
-import json
 from Crypto.PublicKey import RSA
 from Crypto.Util.number import bytes_to_long, long_to_bytes
 from Crypto.Cipher import PKCS1_OAEP, PKCS1_v1_5
 from Crypto.Hash import SHA256
-from sympy import mod_inverse, integer_nthroot, isprime, nextprime, gcd
-import base64
-import os
+from sympy import mod_inverse, integer_nthroot, isprime, gcd
 import random
 import sys
 
 # Tăng giới hạn độ dài chuỗi số nguyên để xử lý số lớn trong RSA
-sys.set_int_max_str_digits(50000)
+sys.set_int_max_str_digits(5000000)
 
 app = Flask(__name__)
 
 class RSAService:
     """Lớp service xử lý các thao tác RSA và tấn công"""
     
+    # Constants
+    DEFAULT_E = 3
+    DEFAULT_BITS = 1024
+    MAX_ATTEMPTS = 100
+    
     @staticmethod
-    def generate_rsa_key(e=3, bits=1024):
+    def _validate_input(data, required_fields):
+        """Helper method để validate input chung"""
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            return False, f"Thiếu thông tin: {', '.join(missing_fields)}"
+        return True, None
+    
+    @staticmethod
+    def _create_error_response(error_msg):
+        """Helper method để tạo error response thống nhất"""
+        return {'success': False, 'error': str(error_msg)}
+    
+    @staticmethod
+    def _create_success_response(data):
+        """Helper method để tạo success response thống nhất"""
+        return {'success': True, **data}
+    
+    @staticmethod
+    def generate_rsa_key(e=DEFAULT_E, bits=DEFAULT_BITS):
         """Tạo cặp khóa RSA với số mũ công khai e"""
         try:
             # Nếu bits >= 1024, sử dụng thư viện Crypto bình thường
@@ -27,33 +47,30 @@ class RSAService:
                 while True:
                     key = RSA.generate(bits, e=e)
                     if key.e == e:
-                        return {
-                            'success': True,
+                        return RSAService._create_success_response({
                             'n': str(key.n),
                             'e': str(key.e),
                             'd': str(key.d),
                             'p': str(key.p),
                             'q': str(key.q),
                             'bits': bits
-                        }
+                        })
             else:
                 # Tạo khóa tùy chỉnh cho bits < 1024 (cho mục đích demo)
                 return RSAService._generate_custom_rsa_key(e, bits)
                 
         except Exception as ex:
-            return {'success': False, 'error': str(ex)}
+            return RSAService._create_error_response(ex)
     
     @staticmethod
     def _generate_custom_rsa_key(e=3, bits=512):
         """Tạo khóa RSA tùy chỉnh cho bits nhỏ (dành cho demo)"""
         try:
-            from math import gcd
-            
             # Tính bit length cho p và q
             p_bits = bits // 2
             q_bits = bits - p_bits
             
-            max_attempts = 100  # Giới hạn số lần thử để tránh vòng lặp vô tận
+            max_attempts = RSAService.MAX_ATTEMPTS
             
             for attempt in range(max_attempts):
                 # Sinh số nguyên tố p
@@ -81,26 +98,24 @@ class RSAService:
                     # Tính d = e^(-1) mod phi(n)
                     d = mod_inverse(e, phi_n)
                     
-                    return {
-                        'success': True,
+                    return RSAService._create_success_response({
                         'n': str(n),
                         'e': str(e),
                         'd': str(d),
                         'p': str(p),
                         'q': str(q),
                         'bits': bits
-                    }
+                    })
                 
                 # Nếu không thỏa mãn, thử lại với p, q khác
             
             # Nếu sau max_attempts lần vẫn không tìm được khóa phù hợp
-            return {
-                'success': False, 
-                'error': f'Không thể tạo khóa RSA với e={e} sau {max_attempts} lần thử. Hãy thử với e khác hoặc bits lớn hơn.'
-            }
+            return RSAService._create_error_response(
+                f'Không thể tạo khóa RSA với e={e} sau {max_attempts} lần thử. Hãy thử với e khác hoặc bits lớn hơn.'
+            )
             
         except Exception as ex:
-            return {'success': False, 'error': f'Lỗi tạo khóa tùy chỉnh: {str(ex)}'}
+            return RSAService._create_error_response(f'Lỗi tạo khóa tùy chỉnh: {str(ex)}')
     
     @staticmethod
     def encrypt_message(message, n, e, input_type='text', padding_type='raw'):
@@ -115,7 +130,7 @@ class RSAService:
                     message_int = int(message)
                     original_display = f"Số nguyên: {message}"
                 except ValueError:
-                    return {'success': False, 'error': 'Input không phải là số nguyên hợp lệ.'}
+                    return RSAService._create_error_response('Input không phải là số nguyên hợp lệ.')
             else:  # text
                 message_bytes = message.encode('utf-8')
                 original_display = f"Văn bản: \"{message}\""
@@ -125,14 +140,13 @@ class RSAService:
                 if input_type == 'text':
                     message_int = bytes_to_long(message_bytes)
                 if message_int >= n:
-                    return {'success': False, 'error': 'Thông điệp quá lớn so với modulus n.'}
+                    return RSAService._create_error_response('Thông điệp quá lớn so với modulus n.')
                 
                 # Raw RSA encryption
                 ciphertext = pow(message_int, e, n)
                 me_value = pow(message_int, e)
                 
-                return {
-                    'success': True,
+                return RSAService._create_success_response({
                     'ciphertext': str(ciphertext),
                     'message_int': str(message_int),
                     'original_display': original_display,
@@ -141,7 +155,7 @@ class RSAService:
                     'comparison': f"m^{e} = {message_int}^{e} = {me_value:,} {'<' if me_value < n else '>='} n = {n:,}",
                     'is_vulnerable': me_value < n,
                     'padding_info': 'Không sử dụng padding (Raw RSA - dễ bị tấn công)'
-                }
+                })
                 
             elif padding_type == 'pkcs1_v1_5':
                 # PKCS#1 v1.5 padding
@@ -150,8 +164,7 @@ class RSAService:
                 ciphertext_bytes = cipher.encrypt(message_bytes)
                 ciphertext = bytes_to_long(ciphertext_bytes)
                 
-                return {
-                    'success': True,
+                return RSAService._create_success_response({
                     'ciphertext': str(ciphertext),
                     'message_int': 'N/A (sử dụng padding)',
                     'original_display': original_display,
@@ -160,7 +173,7 @@ class RSAService:
                     'comparison': 'Sử dụng PKCS#1 v1.5 padding - an toàn hơn',
                     'is_vulnerable': False,
                     'padding_info': 'PKCS#1 v1.5 - thêm random padding để chống tấn công'
-                }
+                })
                 
             elif padding_type == 'oaep':
                 # OAEP padding
@@ -169,8 +182,7 @@ class RSAService:
                 ciphertext_bytes = cipher.encrypt(message_bytes)
                 ciphertext = bytes_to_long(ciphertext_bytes)
                 
-                return {
-                    'success': True,
+                return RSAService._create_success_response({
                     'ciphertext': str(ciphertext),
                     'message_int': 'N/A (sử dụng padding)',
                     'original_display': original_display,
@@ -179,7 +191,7 @@ class RSAService:
                     'comparison': 'Sử dụng OAEP padding - rất an toàn',
                     'is_vulnerable': False,
                     'padding_info': 'OAEP (Optimal Asymmetric Encryption Padding) - chuẩn bảo mật cao nhất'
-                }
+                })
             
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
@@ -464,85 +476,106 @@ def demo():
     """Trang demo"""
     return render_template('demo.html')
 
+# Helper function for API endpoints
+def handle_api_request(service_method, required_fields=None):
+    """Helper function để xử lý API request chung"""
+    try:
+        data = request.get_json() or {}
+        
+        # Validate required fields if specified
+        if required_fields:
+            valid, error = RSAService._validate_input(data, required_fields)
+            if not valid:
+                return jsonify(RSAService._create_error_response(error))
+        
+        # Call service method with all data
+        result = service_method(data)
+        return jsonify(result)
+    except Exception as ex:
+        return jsonify(RSAService._create_error_response(f"API Error: {str(ex)}"))
+
 # API Endpoints
 @app.route('/api/generate_key', methods=['POST'])
 def api_generate_key():
     """API sinh khóa RSA"""
-    data = request.get_json()
-    e = data.get('e', 3)
-    bits = data.get('bits', 1024)
+    def generate_key_handler(data):
+        e = data.get('e', RSAService.DEFAULT_E)
+        bits = data.get('bits', RSAService.DEFAULT_BITS)
+        return RSAService.generate_rsa_key(e=e, bits=bits)
     
-    result = RSAService.generate_rsa_key(e=e, bits=bits)
-    return jsonify(result)
+    return handle_api_request(generate_key_handler)
 
 @app.route('/api/encrypt', methods=['POST'])
 def api_encrypt():
     """API mã hóa"""
-    data = request.get_json()
-    message = data.get('message', '')
-    n = data.get('n', '')
-    e = data.get('e', '')
-    input_type = data.get('input_type', 'text')
-    padding_type = data.get('padding_type', 'raw')
+    def encrypt_handler(data):
+        return RSAService.encrypt_message(
+            data.get('message', ''),
+            data.get('n', ''),
+            data.get('e', ''),
+            data.get('input_type', 'text'),
+            data.get('padding_type', 'raw')
+        )
     
-    result = RSAService.encrypt_message(message, n, e, input_type, padding_type)
-    return jsonify(result)
+    return handle_api_request(encrypt_handler, ['message', 'n', 'e'])
 
 @app.route('/api/decrypt', methods=['POST'])
 def api_decrypt():
     """API giải mã"""
-    data = request.get_json()
-    ciphertext = data.get('ciphertext', '')
-    n = data.get('n', '')
-    d = data.get('d', '')
-    e = data.get('e', None)
-    padding_type = data.get('padding_type', 'raw')
+    def decrypt_handler(data):
+        return RSAService.decrypt_message(
+            data.get('ciphertext', ''),
+            data.get('n', ''),
+            data.get('d', ''),
+            data.get('padding_type', 'raw'),
+            data.get('e', None)
+        )
     
-    result = RSAService.decrypt_message(ciphertext, n, d, padding_type, e)
-    return jsonify(result)
+    return handle_api_request(decrypt_handler, ['ciphertext', 'n', 'd'])
 
 @app.route('/api/attack_single', methods=['POST'])
 def api_attack_single():
     """API tấn công khai căn đơn"""
-    data = request.get_json()
-    ciphertext = data.get('ciphertext', '')
-    e = data.get('e', '')
-    n = data.get('n', '')
+    def attack_single_handler(data):
+        return RSAService.low_exponent_attack_single(
+            data.get('ciphertext', ''),
+            data.get('e', ''),
+            data.get('n', '')
+        )
     
-    result = RSAService.low_exponent_attack_single(ciphertext, e, n)
-    return jsonify(result)
+    return handle_api_request(attack_single_handler, ['ciphertext', 'e', 'n'])
 
 @app.route('/api/attack_hastad', methods=['POST'])
 def api_attack_hastad():
     """API tấn công Håstad"""
-    data = request.get_json()
-    ciphertexts = data.get('ciphertexts', [])
-    public_keys = data.get('public_keys', [])
-    padding_type = data.get('padding_type', 'raw')
-    original_message = data.get('original_message', None)
+    def attack_hastad_handler(data):
+        return RSAService.hastad_attack(
+            data.get('ciphertexts', []),
+            data.get('public_keys', []),
+            data.get('padding_type', 'raw'),
+            data.get('original_message', None)
+        )
     
-    result = RSAService.hastad_attack(ciphertexts, public_keys, padding_type, original_message)
-    return jsonify(result)
+    return handle_api_request(attack_hastad_handler, ['ciphertexts', 'public_keys'])
 
 @app.route('/api/generate_hastad_demo', methods=['POST'])
 def api_generate_hastad_demo():
     """API tạo demo tấn công Håstad"""
-    data = request.get_json()
-    message = data.get('message', 'Hello')
-    e = data.get('e', 3)
-    bits = data.get('bits', 1024)
-    count = data.get('count', 3)
-    input_type = data.get('input_type', 'text')
-    padding_type = data.get('padding_type', 'raw')
-    
-    try:
+    def generate_hastad_demo_handler(data):
+        message = data.get('message', 'Hello')
+        e = data.get('e', RSAService.DEFAULT_E)
+        bits = data.get('bits', RSAService.DEFAULT_BITS)
+        count = data.get('count', 3)
+        input_type = data.get('input_type', 'text')
+        padding_type = data.get('padding_type', 'raw')
+        
         # Tạo nhiều cặp khóa với validation coprime
         keys = []
         ciphertexts = []
         encryption_details = []
         moduli = []
         
-        max_retries = 50  # Số lần thử tối đa để tránh vòng lặp vô tận
+        max_retries = RSAService.MAX_ATTEMPTS
         current_retry = 0
         
         for i in range(count):
@@ -550,7 +583,7 @@ def api_generate_hastad_demo():
             while retry_count < max_retries:
                 key_result = RSAService.generate_rsa_key(e=e, bits=bits)
                 if not key_result['success']:
-                    return jsonify({'success': False, 'error': key_result['error']})
+                    return RSAService._create_error_response(key_result['error'])
                 
                 new_n = int(key_result['n'])
                 
@@ -568,7 +601,7 @@ def api_generate_hastad_demo():
                     # Mã hóa cùng một message với input_type và padding_type
                     encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'], input_type, padding_type)
                     if not encrypt_result['success']:
-                        return jsonify({'success': False, 'error': encrypt_result['error']})
+                        return RSAService._create_error_response(encrypt_result['error'])
                     
                     keys.append({
                         'n': key_result['n'],
@@ -619,8 +652,7 @@ def api_generate_hastad_demo():
             'educational_note': 'Demo này cho phép bạn thấy tại sao padding quan trọng trong RSA'
         }
         
-        return jsonify({
-            'success': True,
+        return RSAService._create_success_response({
             'message': message,
             'keys': keys,
             'ciphertexts': ciphertexts,
@@ -635,8 +667,8 @@ def api_generate_hastad_demo():
                 'note': 'Tất cả moduli đã được kiểm tra và đảm bảo coprime để có thể áp dụng CRT'
             }
         })
-    except Exception as ex:
-        return jsonify({'success': False, 'error': str(ex)})
+    
+    return handle_api_request(generate_hastad_demo_handler)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 

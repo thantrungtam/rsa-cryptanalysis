@@ -3,28 +3,7 @@
 {% block title %}Demo - RSA Cryptanalysis Demo{% endblock %}
 
 {% block content %}
-<style>
-    /* Force CSS refresh and fix display issues */
-    .key-value,
-    .step-math {
-        overflow: visible !important;
-        max-height: none !important;
-        height: auto !important;
-        min-height: auto !important;
-        word-wrap: break-word !important;
-        white-space: pre-wrap !important;
-    }
 
-    .key-display,
-    .result-section,
-    .steps-container {
-        overflow: visible !important;
-        max-height: none !important;
-        height: auto !important;
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-</style>
 <div class="demo-container">
     <h1>🔬 Demo RSA Cryptanalysis</h1>
     <p>Thực hành các chức năng RSA và mô phỏng tấn công</p>
@@ -293,92 +272,7 @@
                 </div>
     </div>
 
-    <div class="demo-container">
-        <h2>🔐 Phân tích các loại mã hóa RSA</h2>
-        <div
-            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
 
-            <div class="attack-example" style="border-left: 4px solid #ff4444;">
-                <h3>⚠️ Raw RSA (Textbook RSA)</h3>
-                <p><strong>Công thức:</strong> c = m^e mod n</p>
-                <p><strong>Đặc điểm:</strong></p>
-                <ul>
-                    <li>Không có padding</li>
-                    <li>Mã hóa trực tiếp</li>
-                    <li>Deterministic (cùng input → cùng output)</li>
-                </ul>
-                <p><strong>⚠️ Lỗ hổng bảo mật:</strong></p>
-                <ul>
-                    <li>Cube root attack khi m^e < n</li>
-                    <li>Håstad attack với nhiều khóa</li>
-                    <li>Chosen plaintext attack</li>
-                    <li>Malleable (có thể thay đổi)</li>
-                </ul>
-                <p><strong>Kết luận:</strong> <span style="color: #ff4444; font-weight: bold;">KHÔNG AN TOÀN - chỉ dùng
-                        để demo</span></p>
-            </div>
-
-            <div class="attack-example" style="border-left: 4px solid #ffaa00;">
-                <h3>🛡️ PKCS#1 v1.5</h3>
-                <p><strong>Công thức:</strong> c = (0x00 || 0x02 || PS || 0x00 || M)^e mod n</p>
-                <p><strong>Đặc điểm:</strong></p>
-                <ul>
-                    <li>Thêm random padding</li>
-                    <li>Structured padding scheme</li>
-                    <li>Được sử dụng rộng rãi</li>
-                </ul>
-                <p><strong>🔒 Bảo mật:</strong></p>
-                <ul>
-                    <li>Chống cube root attack</li>
-                    <li>Tăng entropy</li>
-                    <li>Non-deterministic</li>
-                </ul>
-                <p><strong>⚠️ Hạn chế:</strong></p>
-                <ul>
-                    <li>Có thể bị Bleichenbacher attack</li>
-                    <li>Cần timing attack protection</li>
-                </ul>
-                <p><strong>Kết luận:</strong> <span style="color: #ffaa00; font-weight: bold;">AN TOÀN VỪA PHẢI - legacy
-                        standard</span></p>
-            </div>
-
-            <div class="attack-example" style="border-left: 4px solid #00aa44;">
-                <h3>🔒 OAEP (Optimal Asymmetric Encryption Padding)</h3>
-                <p><strong>Công thức:</strong> Phức tạp với hash functions và mask generation</p>
-                <p><strong>Đặc điểm:</strong></p>
-                <ul>
-                    <li>Sử dụng hash functions (SHA-256)</li>
-                    <li>Mask Generation Function (MGF)</li>
-                    <li>Provably secure</li>
-                </ul>
-                <p><strong>🔒 Bảo mật cao:</strong></p>
-                <ul>
-                    <li>IND-CCA2 secure</li>
-                    <li>Chống mọi known attacks</li>
-                    <li>Random oracle model proof</li>
-                    <li>Non-malleable</li>
-                </ul>
-                <p><strong>✅ Ưu điểm:</strong></p>
-                <ul>
-                    <li>An toàn nhất hiện tại</li>
-                    <li>Chuẩn khuyến nghị</li>
-                    <li>Được RFC định nghĩa</li>
-                </ul>
-                <p><strong>Kết luận:</strong> <span style="color: #00aa44; font-weight: bold;">RẤT AN TOÀN - recommended
-                        standard</span></p>
-            </div>
-        </div>
-
-        <div class="warning-box" style="margin-top: 2rem;">
-            <h3>📋 Khuyến nghị sử dụng:</h3>
-            <ul>
-                <li><strong>Demo/Học tập:</strong> Raw RSA để hiểu các lỗ hổng</li>
-                <li><strong>Hệ thống legacy:</strong> PKCS#1 v1.5 với cảnh báo</li>
-                <li><strong>Ứng dụng thực tế:</strong> OAEP với SHA-256</li>
-                <li><strong>Tương lai:</strong> Chuyển sang post-quantum cryptography</li>
-            </ul>
-        </div>
-    </div>
 
     <div class="demo-container">
         <h2>📝 Hướng dẫn sử dụng</h2>
