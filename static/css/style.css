@@ -474,10 +474,14 @@ body::before {
     white-space: pre-wrap !important;
     box-sizing: border-box !important;
     min-height: fit-content !important;
-    max-height: none !important;
+    max-height: 300px !important;
     height: auto !important;
-    overflow: visible !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
     resize: none !important;
+    /* Better scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(15, 23, 42, 0.3);
 }
 
 /* Style đặc biệt cho các giá trị ngắn */
@@ -546,10 +550,15 @@ body::before {
     word-break: break-all;
     overflow-wrap: break-word;
     border: 1px solid rgba(59, 130, 246, 0.2);
-    white-space: pre-line;
+    white-space: pre-wrap;
     min-height: fit-content;
-    overflow: visible;
+    max-height: 200px;
+    overflow-x: hidden;
+    overflow-y: auto;
     box-sizing: border-box;
+    /* Scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.6) rgba(15, 23, 42, 0.3);
 }
 
 /* Loading */
@@ -766,6 +775,11 @@ body::before {
         font-size: 0.8rem;
         padding: 0.75rem;
         line-height: 1.5;
+        max-height: 150px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        white-space: pre-wrap !important;
+        word-break: break-all !important;
     }
 
     .key-display {
@@ -832,10 +846,10 @@ body::before {
 }
 
 /* Buộc hiển thị đầy đủ - Version 2.0 */
-.key-value,
-.step-math {
-    overflow: visible !important;
-    max-height: none !important;
+.key-value {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: 300px !important;
     height: auto !important;
     min-height: auto !important;
     word-wrap: break-word !important;
@@ -909,4 +923,77 @@ body::after {
 
 .key-textarea::-webkit-scrollbar-thumb:hover {
     background: rgba(59, 130, 246, 0.8);
+}
+
+/* Custom scrollbar for key-value */
+.key-value::-webkit-scrollbar {
+    width: 8px;
+}
+
+.key-value::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 4px;
+}
+
+.key-value::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.6);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+.key-value::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.8);
+}
+
+/* Removed expandable number styles - now using simple textarea */
+
+/* Custom scrollbar for step-math */
+.step-math::-webkit-scrollbar {
+    width: 6px;
+}
+
+.step-math::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 3px;
+}
+
+.step-math::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.6);
+    border-radius: 3px;
+    transition: background 0.3s ease;
+}
+
+.step-math::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.8);
+}
+
+/* Force container constraints */
+.step-item,
+.key-row,
+.hastad-cipher-item {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+.step-math,
+.key-value,
+.key-textarea {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-wrap: break-word !important;
+    word-break: break-all !important;
+}
+
+/* Đảm bảo không có element nào tràn ra ngoài */
+* {
+    box-sizing: border-box !important;
+}
+
+.demo-container,
+.result-section,
+.steps-container,
+.key-display {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
 }

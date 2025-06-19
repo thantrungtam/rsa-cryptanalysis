@@ -13,7 +13,7 @@ function formatNumber(num) {
     return numStr;
 }
 
-function formatNumberForDisplay(num, maxLength = 40) {
+function formatNumberForDisplay(num, maxLength = 80) {
     // Format số cho hiển thị trong step, rút gọn nếu quá dài, loại bỏ dấu phẩy
     let numStr = '';
     if (typeof num === 'string') {
@@ -23,10 +23,13 @@ function formatNumberForDisplay(num, maxLength = 40) {
     }
 
     if (numStr.length > maxLength) {
-        return numStr.substring(0, maxLength) + '...' + numStr.substring(numStr.length - 10);
+        const truncated = numStr.substring(0, 50) + '\n...\n' + numStr.substring(numStr.length - 30);
+        return truncated + '\n[' + numStr.length + ' chữ số]';
     }
     return numStr;
 }
+
+// Removed expandable number functions - now using simple textarea display
 
 function showLoading(elementId) {
     const element = document.getElementById(elementId);
@@ -219,7 +222,7 @@ async function encryptMessage() {
                     <h4>📋 Các bước mã hóa RSA:</h4>
                     <div class="step-item">
                         <span class="step-number">Bước 1:</span>
-                        <span class="step-math">Chuyển đổi văn bản thành số: "${result.original_display}" → ${formatNumber(result.message_int)}</span>
+                        <span class="step-math">Chuyển đổi văn bản thành số: "${result.original_display}" → ${formatNumberForDisplay(result.message_int)}</span>
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 2:</span>
@@ -231,7 +234,7 @@ async function encryptMessage() {
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 4:</span>
-                        <span class="step-math">Kết quả: c = ${formatNumber(result.ciphertext)}</span>
+                        <span class="step-math">Kết quả: c = ${formatNumberForDisplay(result.ciphertext)}</span>
                     </div>
                 </div>
 
@@ -335,16 +338,16 @@ async function decryptMessage() {
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 2:</span>
-                        <span class="step-math">Tính toán: m ≡ ${formatNumber(ciphertext)}^${formatNumber(d)} (mod ${formatNumber(n)})</span>
+                        <span class="step-math">Tính toán: m ≡ ${formatNumberForDisplay(ciphertext)}^${formatNumberForDisplay(d)} (mod ${formatNumberForDisplay(n)})</span>
                     </div>
                     ${result.message_int !== 'N/A' ? `
                     <div class="step-item">
                         <span class="step-number">Bước 3:</span>
-                        <span class="step-math">Kết quả số nguyên: m = ${formatNumber(result.message_int)}</span>
+                        <span class="step-math">Kết quả số nguyên: m = ${formatNumberForDisplay(result.message_int)}</span>
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 4:</span>
-                        <span class="step-math">Chuyển đổi về văn bản: ${formatNumber(result.message_int)} → "${result.message}"</span>
+                        <span class="step-math">Chuyển đổi về văn bản: ${formatNumberForDisplay(result.message_int)} → "${result.message}"</span>
                     </div>
                     ` : `
                     <div class="step-item">
@@ -444,15 +447,15 @@ async function performSingleAttack() {
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 3:</span>
-                        <span class="step-math">Tính căn bậc ${result.e || 'e'}: m = ∛c = ∛${formatNumber(result.ciphertext || 'c')} = ${formatNumber(result.recovered_m)}</span>
+                        <span class="step-math">Tính căn bậc ${result.e || 'e'}: m = ∛c = ∛${formatNumberForDisplay(result.ciphertext || 'c')} = ${formatNumberForDisplay(result.recovered_m)}</span>
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 4:</span>
-                        <span class="step-math">Kết quả: m = ${formatNumber(result.recovered_m)}</span>
+                        <span class="step-math">Kết quả: m = ${formatNumberForDisplay(result.recovered_m)}</span>
                     </div>
                     <div class="step-item">
                         <span class="step-number">Bước 5:</span>
-                        <span class="step-math">Chuyển đổi về văn bản: ${formatNumber(result.recovered_m)} → "${result.message}"</span>
+                        <span class="step-math">Chuyển đổi về văn bản: ${formatNumberForDisplay(result.recovered_m)} → "${result.message}"</span>
                     </div>
                 </div>
 
@@ -496,7 +499,7 @@ async function performSingleAttack() {
                 ${result.steps ? `
                     <div class="steps-container">
                         <h4>Các bước đã thực hiện:</h4>
-                        ${result.steps.map((step, index) => `<div class="step-item"><span class="step-number">Bước ${index + 1}:</span> ${step}</div>`).join('')}
+                        ${result.steps.map((step, index) => `<div class="step-item"><span class="step-number">Bước ${index + 1}:</span><span class="step-math">${step}</span></div>`).join('')}
                     </div>
                 ` : ''}
                 <div class="attack-example mt-2">

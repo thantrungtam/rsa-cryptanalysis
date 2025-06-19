@@ -4,10 +4,14 @@ from Crypto.PublicKey import RSA
 from Crypto.Util.number import bytes_to_long, long_to_bytes
 from Crypto.Cipher import PKCS1_OAEP, PKCS1_v1_5
 from Crypto.Hash import SHA256
-from sympy import mod_inverse, integer_nthroot, isprime, nextprime
+from sympy import mod_inverse, integer_nthroot, isprime, nextprime, gcd
 import base64
 import os
 import random
+import sys
+
+# Tăng giới hạn độ dài chuỗi số nguyên để xử lý số lớn trong RSA
+sys.set_int_max_str_digits(50000)
 
 app = Flask(__name__)
 
@@ -219,6 +223,59 @@ class RSAService:
             return {'success': False, 'error': str(ex)}
     
     @staticmethod
+    def validate_coprime_moduli(moduli):
+        """Kiểm tra các moduli có đôi một là số nguyên tố cùng nhau (coprime)"""
+        validation_result = {
+            'valid': True,
+            'errors': [],
+            'gcd_matrix': [],
+            'steps': []
+        }
+        
+        n = len(moduli)
+        validation_result['steps'].append(f"🔍 KIỂM TRA COPRIME: Kiểm tra {n} moduli")
+        validation_result['steps'].append("📚 ĐIỀU KIỆN: Các moduli phải đôi một nguyên tố cùng nhau (gcd = 1)")
+        
+        # Tạo ma trận GCD để hiển thị
+        gcd_matrix = []
+        for i in range(n):
+            gcd_row = []
+            for j in range(n):
+                if i == j:
+                    gcd_value = moduli[i]  # Đường chéo chính là chính modulus đó
+                    gcd_row.append(f"n{i+1}")
+                else:
+                    gcd_value = gcd(moduli[i], moduli[j])
+                    gcd_row.append(str(gcd_value))
+                    
+                    # Kiểm tra điều kiện coprime
+                    if i < j and gcd_value != 1:  # Chỉ kiểm tra phần tam giác trên để tránh lặp
+                        validation_result['valid'] = False
+                        validation_result['errors'].append(
+                            f"❌ gcd(n{i+1}, n{j+1}) = gcd({moduli[i]}, {moduli[j]}) = {gcd_value} ≠ 1"
+                        )
+                        validation_result['steps'].append(
+                            f"⚠️ PHÁT HIỆN LỖI: Modulus {i+1} và {j+1} không nguyên tố cùng nhau"
+                        )
+                    elif i < j:
+                        validation_result['steps'].append(
+                            f"✅ gcd(n{i+1}, n{j+1}) = 1 - OK"
+                        )
+            gcd_matrix.append(gcd_row)
+        
+        validation_result['gcd_matrix'] = gcd_matrix
+        
+        if validation_result['valid']:
+            validation_result['steps'].append("🎯 KẾT LUẬN: Tất cả các moduli đều nguyên tố cùng nhau")
+            validation_result['steps'].append("✅ CHINESE REMAINDER THEOREM có thể áp dụng")
+        else:
+            validation_result['steps'].append("❌ KẾT LUẬN: Một số moduli không nguyên tố cùng nhau")
+            validation_result['steps'].append("⛔ CHINESE REMAINDER THEOREM KHÔNG thể áp dụng")
+            validation_result['steps'].append("💡 GIẢI PHÁP: Cần sử dụng các moduli từ những nguồn khác nhau")
+        
+        return validation_result
+
+    @staticmethod
     def chinese_remainder_theorem(congruences, verbose=False):
         """Giải hệ phương trình đồng dư bằng định lý số dư Trung Hoa"""
         steps = []
@@ -281,11 +338,30 @@ class RSAService:
             public_keys = [(int(key['n']), int(key['e'])) for key in public_keys]
             
             e = public_keys[0][1]  # Giả sử tất cả có cùng e
+            moduli = [n for n, _ in public_keys]
             
             steps = []
             steps.append(f"Số mũ công khai e = {e}")
             steps.append(f"Số lượng bản mã: {len(ciphertexts)}")
             steps.append(f"Loại padding được sử dụng: {padding_type}")
+            
+            # Validation: Kiểm tra các moduli có coprime không
+            steps.append("\n" + "="*50)
+            validation = RSAService.validate_coprime_moduli(moduli)
+            steps.extend(validation['steps'])
+            steps.append("="*50 + "\n")
+            
+            # Nếu validation thất bại, trả về lỗi
+            if not validation['valid']:
+                error_message = "VALIDATION THẤT BẠI: " + "; ".join(validation['errors'])
+                return {
+                    'success': False, 
+                    'error': error_message,
+                    'steps': steps,
+                    'validation_failed': True,
+                    'gcd_matrix': validation['gcd_matrix'],
+                    'errors': validation['errors']
+                }
             
             # Kiểm tra padding
             if padding_type != 'raw':
@@ -460,36 +536,74 @@ def api_generate_hastad_demo():
     padding_type = data.get('padding_type', 'raw')
     
     try:
-        # Tạo nhiều cặp khóa
+        # Tạo nhiều cặp khóa với validation coprime
         keys = []
         ciphertexts = []
         encryption_details = []
+        moduli = []
+        
+        max_retries = 50  # Số lần thử tối đa để tránh vòng lặp vô tận
+        current_retry = 0
         
         for i in range(count):
-            key_result = RSAService.generate_rsa_key(e=e, bits=bits)
-            if not key_result['success']:
-                return jsonify({'success': False, 'error': key_result['error']})
+            retry_count = 0
+            while retry_count < max_retries:
+                key_result = RSAService.generate_rsa_key(e=e, bits=bits)
+                if not key_result['success']:
+                    return jsonify({'success': False, 'error': key_result['error']})
+                
+                new_n = int(key_result['n'])
+                
+                # Kiểm tra modulus mới có coprime với các modulus đã có không
+                is_coprime_with_existing = True
+                for existing_n in moduli:
+                    if gcd(new_n, existing_n) != 1:
+                        is_coprime_with_existing = False
+                        break
+                
+                if is_coprime_with_existing:
+                    # Modulus hợp lệ, thêm vào danh sách
+                    moduli.append(new_n)
+                    
+                    # Mã hóa cùng một message với input_type và padding_type
+                    encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'], input_type, padding_type)
+                    if not encrypt_result['success']:
+                        return jsonify({'success': False, 'error': encrypt_result['error']})
+                    
+                    keys.append({
+                        'n': key_result['n'],
+                        'e': key_result['e'],
+                        'd': key_result['d'],
+                        'index': i + 1
+                    })
+                    ciphertexts.append(encrypt_result['ciphertext'])
+                    
+                    # Lưu thông tin mã hóa để phân tích
+                    encryption_details.append({
+                        'key_index': i + 1,
+                        'ciphertext': encrypt_result['ciphertext'],
+                        'is_vulnerable': encrypt_result.get('is_vulnerable', False) if padding_type == 'raw' else False,
+                        'padding_info': encrypt_result.get('padding_info', ''),
+                        'message_int': encrypt_result.get('message_int', 'N/A')
+                    })
+                    break
+                else:
+                    retry_count += 1
+                    current_retry += 1
             
-            # Mã hóa cùng một message với input_type và padding_type
-            encrypt_result = RSAService.encrypt_message(message, key_result['n'], key_result['e'], input_type, padding_type)
-            if not encrypt_result['success']:
-                return jsonify({'success': False, 'error': encrypt_result['error']})
-            
-            keys.append({
-                'n': key_result['n'],
-                'e': key_result['e'],
-                'd': key_result['d'],
-                'index': i + 1
-            })
-            ciphertexts.append(encrypt_result['ciphertext'])
-            
-            # Lưu thông tin mã hóa để phân tích
-            encryption_details.append({
-                'key_index': i + 1,
-                'ciphertext': encrypt_result['ciphertext'],
-                'is_vulnerable': encrypt_result.get('is_vulnerable', False) if padding_type == 'raw' else False,
-                'padding_info': encrypt_result.get('padding_info', ''),
-                'message_int': encrypt_result.get('message_int', 'N/A')
+            if retry_count >= max_retries:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Không thể tạo được khóa thứ {i+1} coprime với các khóa trước đó sau {max_retries} lần thử. Hãy thử với bits lớn hơn hoặc giảm số lượng khóa.'
+                })
+        
+        # Validation cuối cùng để chắc chắn
+        validation = RSAService.validate_coprime_moduli(moduli)
+        if not validation['valid']:
+            return jsonify({
+                'success': False,
+                'error': 'VALIDATION THẤT BẠI: Một số moduli không coprime mặc dù đã kiểm tra khi sinh.',
+                'validation_errors': validation['errors']
             })
         
         # Phân tích khả năng tấn công
@@ -513,7 +627,13 @@ def api_generate_hastad_demo():
             'input_type': input_type,
             'padding_type': padding_type,
             'encryption_details': encryption_details,
-            'attack_analysis': attack_analysis
+            'attack_analysis': attack_analysis,
+            'coprime_validation': {
+                'validated': True,
+                'generation_retries': current_retry,
+                'moduli_count': len(moduli),
+                'note': 'Tất cả moduli đã được kiểm tra và đảm bảo coprime để có thể áp dụng CRT'
+            }
         })
     except Exception as ex:
         return jsonify({'success': False, 'error': str(ex)})
