@@ -28,7 +28,8 @@ class RSAService:
             return False, f"Thiếu thông tin: {', '.join(missing_fields)}"
         return True, None
     
-    @staticmethod
+    @staticmethod 
+    # là một decorator dùng để đánh dấu phương thức tĩnh tron class
     def _create_error_response(error_msg):
         """Helper method để tạo error response thống nhất"""
         return {'success': False, 'error': str(error_msg)}
@@ -95,7 +96,7 @@ class RSAService:
                 
                 # Kiểm tra điều kiện gcd(e, phi_n) = 1
                 if gcd(e, phi_n) == 1:
-                    # Tính d = e^(-1) mod phi(n)
+                    # Tính d×e≡1(modφ(n))
                     d = mod_inverse(e, phi_n)
                     
                     return RSAService._create_success_response({
@@ -132,6 +133,18 @@ class RSAService:
                 except ValueError:
                     return RSAService._create_error_response('Input không phải là số nguyên hợp lệ.')
             else:  # text
+                """
+                Bước 1: Chuyển "HIHIHI" → bytes
+                    b = b'HIHIHI'  # tương đương [72, 73, 72, 73, 72, 73] (mã ASCII của 'H'=72, 'I'=73)
+                Bước 2: Ghép các byte này thành một số nguyên lớn, theo biểu diễn nhị phân nối nhau từ trái sang phải:
+                    b'HIHIHI' = b'\x48\x49\x48\x49\x48\x49'
+
+                    → Nhị phân: 01001000 01001001 01001000 01001001 01001000 01001001
+
+                    → Gộp lại: 0b010010000100100101001000010010010100100001001001
+
+                    → Giá trị thập phân: 79479582574665
+                """
                 message_bytes = message.encode('utf-8')
                 original_display = f"Văn bản: \"{message}\""
             
@@ -311,35 +324,85 @@ class RSAService:
         
         return result, steps
     
+    """Chương trình chỉ xử lý  m^e < n, tức là bản mã chưa qua modulo ciphertext = m^e
+    Nhưng thực tế RSA mã hoá theo dạng ciphertext = m^e mod n"""
+    # @staticmethod
+    # def low_exponent_attack_single(ciphertext, e, n):
+    #     """Tấn công khai căn khi m^e < n"""
+    #     try:
+    #         ciphertext = int(ciphertext)
+    #         e = int(e)
+    #         n = int(n)
+            
+    #         steps = []
+    #         steps.append(f"Bản mã: {ciphertext}")
+    #         steps.append(f"Giải phương trình m^{e} = {ciphertext} (mod {n}) với m^e < n")
+    #         steps.append(f"Vì m^{e} < n, ta có thể khai căn trực tiếp: m = ∛{ciphertext}")
+            
+    #         m_root, exact = integer_nthroot(ciphertext, e)
+    #         steps.append(f"Kết quả khai căn bậc {e}: {m_root}, chính xác: {exact}")
+            
+    #         if not exact:
+    #             return {'success': False, 'error': 'Không tìm được căn bậc e chính xác. Có thể bản mã hoặc khóa không hợp lệ.', 'steps': steps}
+            
+    #         try:
+    #             message = long_to_bytes(m_root).decode()
+    #         except:
+    #             message = str(long_to_bytes(m_root))
+            
+    #         steps.append(f"Chuyển đổi số nguyên thành chuỗi: {message}")
+            
+    #         return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+    #     except Exception as ex:
+    #         return {'success': False, 'error': str(ex)}
+     
+    """TH2: Modulo làm mất thông tin m^e ≥ n -> Dò k, thử m^e = c + k·n, khai căn """
     @staticmethod
-    def low_exponent_attack_single(ciphertext, e, n):
-        """Tấn công khai căn khi m^e < n"""
+    def low_exponent_attack_single(ciphertext, e, n, max_k=10000):
+        """Tấn công khai căn khi m^e < n hoặc tồn tại k: m^e = c + k·n"""
         try:
             ciphertext = int(ciphertext)
             e = int(e)
             n = int(n)
-            
+
             steps = []
             steps.append(f"Bản mã: {ciphertext}")
-            steps.append(f"Giải phương trình m^{e} = {ciphertext} (mod {n}) với m^e < n")
-            steps.append(f"Vì m^{e} < n, ta có thể khai căn trực tiếp: m = ∛{ciphertext}")
-            
+            steps.append(f"Số mũ công khai e = {e}, modulus n = {n}")
+            steps.append("Thử khai căn trực tiếp nếu m^e < n...")
+
             m_root, exact = integer_nthroot(ciphertext, e)
-            steps.append(f"Kết quả khai căn bậc {e}: {m_root}, chính xác: {exact}")
-            
-            if not exact:
-                return {'success': False, 'error': 'Không tìm được căn bậc e chính xác. Có thể bản mã hoặc khóa không hợp lệ.', 'steps': steps}
-            
-            try:
-                message = long_to_bytes(m_root).decode()
-            except:
-                message = str(long_to_bytes(m_root))
-            
-            steps.append(f"Chuyển đổi số nguyên thành chuỗi: {message}")
-            
-            return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+            if exact:
+                try:
+                    message = long_to_bytes(m_root).decode()
+                except:
+                    message = str(long_to_bytes(m_root))
+
+                steps.append(f"✅ Thành công: m = {m_root}")
+                steps.append(f"Chuỗi giải mã: {message}")
+                return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+
+            # Nếu không khai căn trực tiếp, thử c + k·n
+            """"Low exponent attack with modulo recovery hay ~Brute-force k such that m^e = c + k·n"""
+            steps.append("❌ Không khai căn trực tiếp được. Thử mở rộng với c + k·n...")
+
+            for k in range(1, max_k):
+                c_try = ciphertext + k * n
+                m_root, exact = integer_nthroot(c_try, e)
+                if exact:
+                    try:
+                        message = long_to_bytes(m_root).decode()
+                    except:
+                        message = str(long_to_bytes(m_root))
+                    steps.append(f"✅ Tìm được k = {k}, với m^e = c + k·n = {c_try}")
+                    steps.append(f"Khai căn bậc {e}: m = {m_root}")
+                    steps.append(f"Chuỗi giải mã: {message}")
+                    return {'success': True, 'message': message, 'steps': steps, 'recovered_m': str(m_root)}
+
+            return {'success': False, 'error': 'Không tìm được căn chính xác với mọi k <= ' + str(max_k), 'steps': steps}
+
         except Exception as ex:
             return {'success': False, 'error': str(ex)}
+
     
     @staticmethod
     def hastad_attack(ciphertexts, public_keys, padding_type='raw', original_message=None):
